@@ -12,7 +12,7 @@ description: "The 'aha!' moment: Docker's cgroups were designed for discrete GPU
 
 ## The Question That Started It All
 
-After getting both Docker and native environments working, we could finally run proper benchmarks. But I kept asking myself:
+After getting both Docker and native environments working, I could finally run proper benchmarks. But I kept asking myself:
 
 **"Where is the 26GB going?"**
 

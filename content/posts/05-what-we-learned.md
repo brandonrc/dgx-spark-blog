@@ -1,5 +1,5 @@
 ---
-title: "What We Learned (And What's Next)"
+title: "What I Learned (And What's Next)"
 date: 2025-11-08T14:00:00-00:00
 draft: false
 tags: ["dgx-spark", "conclusions", "recommendations", "phase2"]
@@ -7,7 +7,7 @@ categories: ["Investigation"]
 author: "Brandon Geraci"
 showToc: true
 TocOpen: false
-description: "After 60 benchmarks and hours of debugging, here's what we learned about Grace Hopper, Docker, and the importance of understanding your full stack. Plus: what we're investigating next."
+description: "After 60 benchmarks and hours of debugging, here's what I learned about Grace Hopper, Docker, and the importance of understanding your full stack. Plus: what I'm investigating next."
 ---
 
 ## The Journey So Far
@@ -15,12 +15,12 @@ description: "After 60 benchmarks and hours of debugging, here's what we learned
 Let's recap this wild ride:
 
 1. **The Problem**: YouTube reviewers blamed NVIDIA hardware for being slow
-2. **The Investigation**: We found 20-30GB memory overhead in Docker containers
+2. **The Investigation**: I found 20-30GB memory overhead in Docker containers
 3. **The Environment Setup**: MPI and chroot configuration nightmare
 4. **The Revelation**: Docker's cgroups double-count unified memory
 5. **The Data**: 60 runs confirmed the pattern consistently
 
-Now, what do we actually **do** with this knowledge?
+Now, what do I actually **do** with this knowledge?
 
 ## Key Finding: Don't Blame the Hardware
 
@@ -46,7 +46,7 @@ Grace Hopper introduced unified memory:
 
 ## Practical Recommendations
 
-Based on our findings, here's what we recommend:
+Based on my findings, here's what I recommend:
 
 ### For Large Models on Grace Hopper (> 10B params):
 
@@ -81,7 +81,7 @@ Traditional discrete GPU systems should NOT exhibit this pattern because:
 
 ## The KV Cache Deep Dive (Phase 2)
 
-Here's what really caught our attention: **The KV cache scaling**.
+Here's what really caught my attention: **The KV cache scaling**.
 
 Look at these numbers again:
 
@@ -102,7 +102,7 @@ This suggests:
 
 ## Phase 2: The Factory Reset Experiment
 
-We're planning a comprehensive Phase 2 investigation:
+I'm planning a comprehensive Phase 2 investigation:
 
 ### The Plan
 
@@ -114,7 +114,7 @@ We're planning a comprehensive Phase 2 investigation:
 
 ### Goals
 
-- Validate our findings with even cleaner test setup
+- Validate my findings with even cleaner test setup
 - Eliminate any remaining configuration variables
 - Deep dive into KV cache allocation strategies
 - Understand memory efficiency across model families
@@ -122,14 +122,14 @@ We're planning a comprehensive Phase 2 investigation:
 
 ### Open Questions
 
-- Can we optimize Docker for unified memory? (cgroup v2, special configs)
+- Can I optimize Docker for unified memory? (cgroup v2, special configs)
 - Do other unified memory systems (AMD MI300) show the same pattern?
 - How does KV cache scale with context length (8k, 32k, 128k tokens)?
 - What model architectures are most memory-efficient?
 
 ## Share Your Findings
 
-If you're running Grace Hopper systems (or other unified memory architectures), we'd love to hear from you:
+If you're running Grace Hopper systems (or other unified memory architectures), I'd love to hear from you:
 
 - Are you seeing similar patterns?
 - Have you found workarounds?
@@ -170,7 +170,7 @@ When something seems slow or inefficient, resist the urge to blame the most visi
 
 The YouTubers who blamed NVIDIA weren't doing engineering. They were doing performance theater.
 
-We did engineering. And we found the real answer.
+I did engineering. And I found the real answer.
 
 ---
 
@@ -180,9 +180,9 @@ Have you encountered similar issues? Different findings? Better solutions?
 
 - Comment on [GitHub Discussions](https://github.com/brandonrc/benchmark-spark/discussions)
 - Share your data
-- Help us build Phase 2
+- Help me build Phase 2
 
-Together, we can make GPU computing better for everyone - by actually understanding it instead of just pointing fingers.
+Together, you and I can make GPU computing better for everyone - by actually understanding it instead of just pointing fingers.
 
 ---
 

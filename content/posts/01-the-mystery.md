@@ -7,7 +7,7 @@ categories: ["Investigation"]
 author: "Brandon Geraci"
 showToc: true
 TocOpen: false
-description: "YouTube tech reviewers were quick to blame NVIDIA's new DGX Spark for being slow. But was it really the hardware's fault, or were we missing something deeper in the software stack?"
+description: "YouTube tech reviewers were quick to blame NVIDIA's new DGX Spark for being slow. But was it really the hardware's fault, or was I missing something deeper in the software stack?"
 ---
 
 ## The YouTube Problem
@@ -20,9 +20,9 @@ Not because I'm an NVIDIA fanboy (I'm not), but because **none of these reviewer
 
 That's not how engineering works.
 
-## Our Setup: The New Kid on the Block
+## My Setup: The New Kid on the Block
 
-We got our hands on an NVIDIA DGX Spark - a genuinely interesting piece of hardware:
+I got my hands on an NVIDIA DGX Spark - a genuinely interesting piece of hardware:
 
 - **CPU**: ARM Cortex (X925 + A725), 20 cores total
 - **GPU**: NVIDIA GB10 (Blackwell architecture, Grace Hopper design)
@@ -41,15 +41,15 @@ The authors tested Docker GPU passthrough on consumer hardware (RTX 3060) and fo
 - Native execution: Faster (1.52s avg)
 - Docker containers: Slower (2.55s avg), but higher GPU utilization
 
-**This validated that Docker overhead exists.** But that study used consumer GPUs with simple matrix multiplication. We wanted to understand:
+**This validated that Docker overhead exists.** But that study used consumer GPUs with simple matrix multiplication. I wanted to understand:
 
 1. Does this apply to enterprise DGX hardware?
 2. What about production LLM workloads, not just matmul?
-3. **WHY** does this overhead exist in our specific case?
+3. **WHY** does this overhead exist in my specific case?
 
 ## The Test
 
-We ran TensorRT-LLM inference benchmarks in two environments:
+I ran TensorRT-LLM inference benchmarks in two environments:
 
 **Docker Container** (NVIDIA's official image):
 ```bash
@@ -95,7 +95,7 @@ You might think "who cares about 26GB if performance is the same?" But:
 
 ## The Investigation Begins
 
-Rather than accept this as "Docker is bloated" or "Grace Hopper is broken," we decided to dig in:
+Rather than accept this as "Docker is bloated" or "Grace Hopper is broken," I decided to dig in:
 
 1. Run comprehensive benchmarks (60 runs across 3 different model sizes)
 2. Test multiple LLMs: 7B, 72B, and 120B parameter models
@@ -108,7 +108,7 @@ The journey involved:
 - A revelation about Linux cgroups and unified memory
 - Some genuinely surprising discoveries about KV cache scaling
 
-**Spoiler**: We found the root cause. And it's not what you think.
+**Spoiler**: I found the root cause. And it's not what you think.
 
 In the next post, I'll walk through the pain of setting up a proper test environment. Because sometimes the hardest part of debugging isn't finding the bug - it's just getting to a clean test in the first place.
 

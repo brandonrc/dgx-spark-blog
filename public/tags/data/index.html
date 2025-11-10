@@ -149,8 +149,8 @@
   </header>
   <div class="entry-content">
     <p>The Comprehensive Test Plan Anecdotes are interesting. Single data points are suggestive. But 60 benchmark runs across multiple models? That’s science.
-Here’s what we did:
-Test Matrix 3 Models: DeepSeek-R1-Distill-Qwen-7B (7 billion parameters) Qwen2.5-72B-Instruct (72 billion parameters) GPT-OSS-120B (120 billion parameters, MXFP4 quantized) 2 Environments: Native (chroot) vs Container (Docker) 10 Iterations per model per environment Total: 60 benchmark runs Methodology Framework: TensorRT-LLM (trtllm-bench CLI) Workload: 50 requests, 128 output tokens per request Cooldown: 5 minutes &#43; GPU temp check (&lt; 45°C) between runs Duration: ~14 hours total Metrics: Peak memory, KV cache, throughput, latency, temperature DeepSeek-7B Results Our smallest model, but the most shocking results:
+Here’s what I did:
+Test Matrix 3 Models: DeepSeek-R1-Distill-Qwen-7B (7 billion parameters) Qwen2.5-72B-Instruct (72 billion parameters) GPT-OSS-120B (120 billion parameters, MXFP4 quantized) 2 Environments: Native (chroot) vs Container (Docker) 10 Iterations per model per environment Total: 60 benchmark runs Methodology Framework: TensorRT-LLM (trtllm-bench CLI) Workload: 50 requests, 128 output tokens per request Cooldown: 5 minutes &#43; GPU temp check (&lt; 45°C) between runs Duration: ~14 hours total Metrics: Peak memory, KV cache, throughput, latency, temperature DeepSeek-7B Results My smallest model, but the most shocking results:
 ...</p>
   </div>
   <footer class="entry-footer"><span title='2025-11-08 13:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>

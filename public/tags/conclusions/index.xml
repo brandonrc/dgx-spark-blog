@@ -9,11 +9,11 @@
     <lastBuildDate>Sat, 08 Nov 2025 14:00:00 +0000</lastBuildDate>
     <atom:link href="https://brandonrc.github.io/dgx-spark-blog/tags/conclusions/index.xml" rel="self" type="application/rss+xml" />
     <item>
-      <title>What We Learned (And What&#39;s Next)</title>
+      <title>What I Learned (And What&#39;s Next)</title>
       <link>https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/</link>
       <pubDate>Sat, 08 Nov 2025 14:00:00 +0000</pubDate>
       <guid>https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/</guid>
-      <description>After 60 benchmarks and hours of debugging, here&amp;#39;s what we learned about Grace Hopper, Docker, and the importance of understanding your full stack. Plus: what we&amp;#39;re investigating next.</description>
+      <description>After 60 benchmarks and hours of debugging, here&amp;#39;s what I learned about Grace Hopper, Docker, and the importance of understanding your full stack. Plus: what I&amp;#39;m investigating next.</description>
     </item>
   </channel>
 </rss>

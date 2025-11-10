@@ -13,7 +13,7 @@
       <link>https://brandonrc.github.io/dgx-spark-blog/posts/04-the-data/</link>
       <pubDate>Sat, 08 Nov 2025 13:00:00 +0000</pubDate>
       <guid>https://brandonrc.github.io/dgx-spark-blog/posts/04-the-data/</guid>
-      <description>We ran 60 comprehensive benchmarks across three different model sizes. The results are consistent, surprising, and prove that unified memory &#43; Docker cgroups = significant overhead.</description>
+      <description>I ran 60 comprehensive benchmarks across three different model sizes. The results are consistent, surprising, and prove that unified memory &#43; Docker cgroups = significant overhead.</description>
     </item>
   </channel>
 </rss>

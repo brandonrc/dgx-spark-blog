@@ -7,14 +7,14 @@ categories: ["Investigation"]
 author: "Brandon Geraci"
 showToc: true
 TocOpen: false
-description: "We ran 60 comprehensive benchmarks across three different model sizes. The results are consistent, surprising, and prove that unified memory + Docker cgroups = significant overhead."
+description: "I ran 60 comprehensive benchmarks across three different model sizes. The results are consistent, surprising, and prove that unified memory + Docker cgroups = significant overhead."
 ---
 
 ## The Comprehensive Test Plan
 
 Anecdotes are interesting. Single data points are suggestive. But **60 benchmark runs** across multiple models? That's science.
 
-Here's what we did:
+Here's what I did:
 
 ### Test Matrix
 - **3 Models**:
@@ -34,7 +34,7 @@ Here's what we did:
 
 ## DeepSeek-7B Results
 
-Our smallest model, but the most shocking results:
+My smallest model, but the most shocking results:
 
 | Metric | Native | Container | Difference |
 |--------|--------|-----------|------------|

@@ -159,17 +159,17 @@
 
 <article class="post-entry"> 
   <header class="entry-header">
-    <h2 class="entry-hint-parent">What We Learned (And What&#39;s Next)
+    <h2 class="entry-hint-parent">What I Learned (And What&#39;s Next)
     </h2>
   </header>
   <div class="entry-content">
     <p>The Journey So Far Let’s recap this wild ride:
-The Problem: YouTube reviewers blamed NVIDIA hardware for being slow The Investigation: We found 20-30GB memory overhead in Docker containers The Environment Setup: MPI and chroot configuration nightmare The Revelation: Docker’s cgroups double-count unified memory The Data: 60 runs confirmed the pattern consistently Now, what do we actually do with this knowledge?
+The Problem: YouTube reviewers blamed NVIDIA hardware for being slow The Investigation: I found 20-30GB memory overhead in Docker containers The Environment Setup: MPI and chroot configuration nightmare The Revelation: Docker’s cgroups double-count unified memory The Data: 60 runs confirmed the pattern consistently Now, what do I actually do with this knowledge?
 Key Finding: Don’t Blame the Hardware The most important lesson from this entire investigation:
 ...</p>
   </div>
   <footer class="entry-footer"><span title='2025-11-08 14:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
-  <a class="entry-link" aria-label="post link to What We Learned (And What&#39;s Next)" href="https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/"></a>
+  <a class="entry-link" aria-label="post link to What I Learned (And What&#39;s Next)" href="https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/"></a>
 </article>
 
 <article class="post-entry"> 
@@ -179,8 +179,8 @@ Key Finding: Don’t Blame the Hardware The most important lesson from this enti
   </header>
   <div class="entry-content">
     <p>The Comprehensive Test Plan Anecdotes are interesting. Single data points are suggestive. But 60 benchmark runs across multiple models? That’s science.
-Here’s what we did:
-Test Matrix 3 Models: DeepSeek-R1-Distill-Qwen-7B (7 billion parameters) Qwen2.5-72B-Instruct (72 billion parameters) GPT-OSS-120B (120 billion parameters, MXFP4 quantized) 2 Environments: Native (chroot) vs Container (Docker) 10 Iterations per model per environment Total: 60 benchmark runs Methodology Framework: TensorRT-LLM (trtllm-bench CLI) Workload: 50 requests, 128 output tokens per request Cooldown: 5 minutes &#43; GPU temp check (&lt; 45°C) between runs Duration: ~14 hours total Metrics: Peak memory, KV cache, throughput, latency, temperature DeepSeek-7B Results Our smallest model, but the most shocking results:
+Here’s what I did:
+Test Matrix 3 Models: DeepSeek-R1-Distill-Qwen-7B (7 billion parameters) Qwen2.5-72B-Instruct (72 billion parameters) GPT-OSS-120B (120 billion parameters, MXFP4 quantized) 2 Environments: Native (chroot) vs Container (Docker) 10 Iterations per model per environment Total: 60 benchmark runs Methodology Framework: TensorRT-LLM (trtllm-bench CLI) Workload: 50 requests, 128 output tokens per request Cooldown: 5 minutes &#43; GPU temp check (&lt; 45°C) between runs Duration: ~14 hours total Metrics: Peak memory, KV cache, throughput, latency, temperature DeepSeek-7B Results My smallest model, but the most shocking results:
 ...</p>
   </div>
   <footer class="entry-footer"><span title='2025-11-08 13:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
@@ -193,7 +193,7 @@ Test Matrix 3 Models: DeepSeek-R1-Distill-Qwen-7B (7 billion parameters) Qwen2.5
     </h2>
   </header>
   <div class="entry-content">
-    <p>The Question That Started It All After getting both Docker and native environments working, we could finally run proper benchmarks. But I kept asking myself:
+    <p>The Question That Started It All After getting both Docker and native environments working, I could finally run proper benchmarks. But I kept asking myself:
 “Where is the 26GB going?”
 It wasn’t CPU overhead - containers don’t add 26GB of process memory.
 It wasn’t the Docker daemon - that’s tiny.
