@@ -4,7 +4,7 @@ title = 'DGX Spark Deep Dive'
 theme = 'PaperMod'
 
 [params]
-  description = "A technical journey debugging container performance on NVIDIA DGX Spark with Grace Hopper"
+  description = "A technical journey debugging container performance on NVIDIA DGX Spark with Grace Blackwell"
   author = "Brandon Geraci"
   showReadingTime = true
   showShareButtons = true
@@ -17,7 +17,7 @@ theme = 'PaperMod'
     Content = """
     A deep dive into debugging why Docker containers were using 20-30 GB more memory than native execution on NVIDIA DGX Spark.
 
-    **Spoiler**: Grace Hopper's unified memory architecture + Docker's cgroups = double-counting.
+    **Spoiler**: Grace Blackwell's unified memory architecture + Docker's cgroups = double-counting.
     """
 
   [[params.socialIcons]]
