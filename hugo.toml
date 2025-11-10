@@ -1,0 +1,53 @@
+baseURL = 'https://brandonrc.github.io/dgx-spark-blog/'
+languageCode = 'en-us'
+title = 'DGX Spark Deep Dive'
+theme = 'PaperMod'
+
+[params]
+  description = "A technical journey debugging container performance on NVIDIA DGX Spark with Grace Hopper"
+  author = "Brandon Geraci"
+  showReadingTime = true
+  showShareButtons = true
+  showPostNavLinks = true
+  showBreadCrumbs = true
+  showCodeCopyButtons = true
+
+  [params.homeInfoParams]
+    Title = "DGX Spark Performance Investigation"
+    Content = """
+    A deep dive into debugging why Docker containers were using 20-30 GB more memory than native execution on NVIDIA DGX Spark.
+
+    **Spoiler**: Grace Hopper's unified memory architecture + Docker's cgroups = double-counting.
+    """
+
+  [[params.socialIcons]]
+    name = "github"
+    url = "https://github.com/brandonrc/benchmark-spark"
+
+[menu]
+  [[menu.main]]
+    identifier = "posts"
+    name = "Blog"
+    url = "/posts/"
+    weight = 10
+
+  [[menu.main]]
+    identifier = "about"
+    name = "About"
+    url = "/about/"
+    weight = 20
+
+  [[menu.main]]
+    identifier = "results"
+    name = "Results"
+    url = "https://github.com/brandonrc/benchmark-spark"
+    weight = 30
+
+[markup]
+  [markup.highlight]
+    style = "monokai"
+    lineNos = true
+    lineNumbersInTable = true
+
+[outputs]
+  home = ["HTML", "RSS", "JSON"]

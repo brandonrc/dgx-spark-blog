@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>The Unified Memory Revelation: Why Docker Double-Counts | DGX Spark Deep Dive</title>
+<meta name="keywords" content="dgx-spark, grace-hopper, unified-memory, cgroups, docker">
+<meta name="description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
+<meta name="author" content="Brandon Geraci">
+<link rel="canonical" href="https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/">
+<link crossorigin="anonymous" href="/dgx-spark-blog/assets/css/stylesheet.343cc480b9ffc8f04ccbe5e968ad674880cab773ec19905e93033065c1e7a804.css" integrity="sha256-NDzEgLn/yPBMy&#43;XpaK1nSIDKt3PsGZBekwMwZcHnqAQ=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://brandonrc.github.io/dgx-spark-blog/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://brandonrc.github.io/dgx-spark-blog/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://brandonrc.github.io/dgx-spark-blog/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://brandonrc.github.io/dgx-spark-blog/apple-touch-icon.png">
+<link rel="mask-icon" href="https://brandonrc.github.io/dgx-spark-blog/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script><meta property="og:url" content="https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/">
+  <meta property="og:site_name" content="DGX Spark Deep Dive">
+  <meta property="og:title" content="The Unified Memory Revelation: Why Docker Double-Counts">
+  <meta property="og:description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
+  <meta property="og:locale" content="en-us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2025-11-08T12:00:00+00:00">
+    <meta property="article:modified_time" content="2025-11-08T12:00:00+00:00">
+    <meta property="article:tag" content="Dgx-Spark">
+    <meta property="article:tag" content="Grace-Hopper">
+    <meta property="article:tag" content="Unified-Memory">
+    <meta property="article:tag" content="Cgroups">
+    <meta property="article:tag" content="Docker">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="The Unified Memory Revelation: Why Docker Double-Counts">
+<meta name="twitter:description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "https://brandonrc.github.io/dgx-spark-blog/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "The Unified Memory Revelation: Why Docker Double-Counts",
+      "item": "https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "The Unified Memory Revelation: Why Docker Double-Counts",
+  "name": "The Unified Memory Revelation: Why Docker Double-Counts",
+  "description": "The 'aha!' moment: Docker's cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.",
+  "keywords": [
+    "dgx-spark", "grace-hopper", "unified-memory", "cgroups", "docker"
+  ],
+  "articleBody": "The Question That Started It All After getting both Docker and native environments working, we could finally run proper benchmarks. But I kept asking myself:\n“Where is the 26GB going?”\nIt wasn’t CPU overhead - containers don’t add 26GB of process memory.\nIt wasn’t the Docker daemon - that’s tiny.\nIt wasn’t duplicate libraries - bind mounts prevent that.\nSo… where?\nTraditional GPU Systems (The Old Way) Let’s start with how most GPU systems work. Take an NVIDIA H100 or A100:\n┌ │ │ │ │ └ ─ ─ ─ ─ ─ D 6 ─ ─ C D 4 ─ ─ P R - ─ ─ U 5 ─ ─ R 1 ─ ─ ( A 2 ─ ─ H M ─ ─ o G ─ ─ s B ─ ─ t ─ ─ ) ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ │ ┘ ◄ ─ P ─ C ─ I ─ e ► ┌ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ G H 4 ─ ─ P B 0 ─ ─ U M - ─ ─ 8 ─ ─ ( ( 0 ─ ─ D V ─ ─ e R G ─ ─ v A B ─ ─ i M ─ ─ c ) ─ ─ e ─ ─ ) ─ ─ ─ ┐ │ │ │ │ ┘ Key points:\nCPU has its own RAM (DDR) GPU has its own VRAM (HBM) Data moves between them over PCIe bus They’re separate memory spaces When Docker runs on these systems:\nDocker’s cgroups manage CPU RAM only GPU VRAM is outside Docker’s control nvidia-docker just passes through GPU access No double-counting because they’re separate Grace Hopper: The Game Changer Now look at Grace Hopper (our DGX Spark):\n┌ │ │ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ ┌ │ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ G ─ U ┌ │ └ C ─ ─ ─ r ─ N ─ ─ o ─ ─ ─ a ─ I ─ A ─ h ─ ─ ─ c ─ F ─ R ─ e ─ ─ ─ e ─ I ─ M ─ r ─ ─ ─ ─ E ─ ─ e ─ ─ ─ H ─ D ─ C ─ n ─ ─ ─ o ─ ─ P ─ t ─ ─ ─ p ─ M ─ U ─ , ─ ─ ─ p ─ E ─ ─ ─ ─ ─ e ─ M ┐ │ ┘ C ─ ─ ─ r ─ O ◄ a ─ ─ ─ ─ R ─ c ─ ─ ─ S ─ Y ─ h ─ ─ ─ y ─ ► e ─ ─ ─ s ─ ( ┌ │ └ - ─ ─ ─ t ─ 1 ─ ─ C ─ ─ ─ e ─ 2 ─ G ─ o ─ ─ ─ m ─ 8 ─ B ─ h ─ ─ ─ ─ ─ 1 ─ e ─ ─ ─ ─ G ─ 0 ─ r ─ ─ ─ ─ B ─ ─ e ─ ─ ─ ─ ) ─ G ─ n ─ ─ ─ ─ ─ P ─ t ─ ─ ─ ─ ─ U ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ ┘ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ │ │ ┘ ─ ─ ─ ┐ │ │ │ │ │ │ │ │ │ ┘ Revolutionary differences:\nOne memory pool for both CPU and GPU No PCIe transfers - both access the same RAM Coherent at the hardware level The CPU “sees” GPU allocations and vice versa This is elegant! No more copying between CPU and GPU. It’s all one big shared memory space.\nThe Docker cgroup Problem Here’s where things go sideways.\nDocker uses Linux cgroups (control groups) to isolate and track container resources:\n1 2 3 # Docker creates a memory cgroup for each container /sys/fs/cgroup/docker//memory.max /sys/fs/cgroup/docker//memory.current On a traditional GPU system, cgroups see:\nCPU RAM: Managed by cgroup ✓ GPU VRAM: Outside cgroup (invisible) ✓ On Grace Hopper unified memory, cgroups see:\nThe entire 128GB pool as “system RAM” ✗ The Double-Counting Here’s what happens when you run a model in a Docker container on Grace Hopper:\nModel loads into unified memory (let’s say 70GB) CUDA driver records this as GPU allocation Docker’s cgroup sees 70GB of “container RAM” used TensorRT-LLM tries to allocate KV cache Docker thinks: “Container is using 70GB already, only X GB left” Reality: That 70GB is THE SAME MEMORY, just counted twice! Result: Docker reserves extra headroom because it thinks GPU memory is separate “container RAM”, even though it’s not.\nThe Evidence Let’s look at what we saw:\nNative (Chroot) T M L K o o e V t d a a e v c l l e a s c u p : h n e e i a f k a i l e u l d s o a c m g a e e t m : e o d r : y : 1 7 4 3 1 8 1 7 9 . . . . 3 3 2 6 1 3 6 4 G G G G B B B B ( 9 0 % o f a v a i l a b l e ) Container (Docker) T M L K o o e V t d a a e v c l l e a s c u p : h n e e i a f k a i l e u l d s o a c m g a e e t m : e o d r : y : 1 1 1 1 1 0 4 3 9 4 . . . . 7 3 6 9 2 1 4 2 G G G G B B B B ( 9 ← 0 % W h o a f t ? a ! v a i l a b l e ) Docker’s cgroup sees 104.92GB used, but the actual model only needs 78GB. The difference (26.6GB) is phantom overhead from Docker’s memory accounting trying to “reserve” space that’s already in use.\nWhy Isn’t This a Problem on Discrete GPUs? On H100/A100 systems, cgroups can’t even see GPU VRAM. It’s on a separate PCIe device. So there’s no double-counting:\nD - - - - U - - - - i n s c C T N i c C D C c g U o o f g U o r r r D t i r D c e e o A a e o A k a t u l v d u e t e p t : e p t r e r r M r ' s G t a 6 l e t a s P r c 4 a m r c U a k p o a k a v : c s + r c s c e k : ✓ y k : c r s 8 s o h : G 0 ( : P u e P G a n a C U = r \" r t d P a S t i U V 1 c y n ✗ R 4 e s o g R A 4 t f : A M G H e M B o m t C s p h o o e p R a n n p e A t f l a r M u y r ) \" s s a : a e ( t ( m d e e 1 e ! . l 2 g y 8 1 . G 2 , ( B 8 e ) G 6 . B 4 g G . B , ) 8 0 G B ) The KV Cache Impact This double-counting has a massive effect on KV cache:\nA - - - v a N C D i a o i l t n f a i t f b v a e l e i r e : n e e n f r c o : e r : 3 1 K 7 3 2 V . . . 2 3 8 c 6 1 x a c G G M h B B O e R : E i n n a t i v e m o d e More KV cache means:\nLonger context windows Higher batch sizes More concurrent requests Better overall throughput scaling That 26GB overhead isn’t just wasted RAM - it’s stolen capacity for serving workloads.\nWhy Performance Is Still The Same You might wonder: “If Docker has less KV cache, why is throughput identical?”\nGood question! For our specific benchmark (50 requests, 128 output tokens):\nEven 13GB of KV cache was enough We weren’t hitting the cache limit Throughput was compute-bound, not memory-bound But in production with:\nLonger contexts (8k, 32k, 128k tokens) Higher batch sizes Many concurrent users That reduced KV cache would absolutely become a bottleneck.\nCan Docker Be Fixed? Maybe? Potential solutions:\nUpdate nvidia-container-toolkit for unified memory awareness Use --memory=unlimited to disable cgroup memory limits Special cgroup configuration for Grace Hopper Wait for Docker/kernel patches that understand unified memory But for now, the simplest solution: Use native execution for large models on Grace Hopper.\nThe Takeaway This isn’t Docker being “bad” or Grace Hopper being “broken.” It’s a mismatch between technology generations:\nDocker’s cgroups: Designed for discrete GPU era Grace Hopper: Next-gen unified memory architecture Result: Software assumptions don’t match hardware reality And that’s why you can’t just blame the hardware. The entire stack matters.\nIn the next post, I’ll show you the data: 60 comprehensive benchmark runs across 3 different models, proving this pattern holds consistently.\nPrevious: ← Part 2: MPI and Chroot Nightmare\nNext: Part 4: The Data - 60 Runs Don’t Lie →\nGitHub Repo: benchmark-spark\n",
+  "wordCount" : "1679",
+  "inLanguage": "en",
+  "datePublished": "2025-11-08T12:00:00Z",
+  "dateModified": "2025-11-08T12:00:00Z",
+  "author":{
+    "@type": "Person",
+    "name": "Brandon Geraci"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "DGX Spark Deep Dive",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://brandonrc.github.io/dgx-spark-blog/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://brandonrc.github.io/dgx-spark-blog/" accesskey="h" title="DGX Spark Deep Dive (Alt + H)">DGX Spark Deep Dive</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://brandonrc.github.io/dgx-spark-blog/posts/" title="Blog">
+                    <span>Blog</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://brandonrc.github.io/dgx-spark-blog/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://github.com/brandonrc/benchmark-spark" title="Results">
+                    <span>Results</span>&nbsp;
+                    <svg fill="none" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round"
+                        stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24" height="12" width="12">
+                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"></path>
+                        <path d="M15 3h6v6"></path>
+                        <path d="M10 14L21 3"></path>
+                    </svg>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://brandonrc.github.io/dgx-spark-blog/">Home</a>&nbsp;»&nbsp;<a href="https://brandonrc.github.io/dgx-spark-blog/posts/">Posts</a></div>
+    <h1 class="post-title entry-hint-parent">
+      The Unified Memory Revelation: Why Docker Double-Counts
+    </h1>
+    <div class="post-description">
+      The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.
+    </div>
+    <div class="post-meta"><span title='2025-11-08 12:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>8 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span>
+
+</div>
+  </header> <div class="toc">
+    <details >
+        <summary accesskey="c" title="(Alt + C)">
+            <span class="details">Table of Contents</span>
+        </summary>
+
+        <div class="inner"><ul>
+                <li>
+                    <a href="#the-question-that-started-it-all" aria-label="The Question That Started It All">The Question That Started It All</a></li>
+                <li>
+                    <a href="#traditional-gpu-systems-the-old-way" aria-label="Traditional GPU Systems (The Old Way)">Traditional GPU Systems (The Old Way)</a></li>
+                <li>
+                    <a href="#grace-hopper-the-game-changer" aria-label="Grace Hopper: The Game Changer">Grace Hopper: The Game Changer</a></li>
+                <li>
+                    <a href="#the-docker-cgroup-problem" aria-label="The Docker cgroup Problem">The Docker cgroup Problem</a></li>
+                <li>
+                    <a href="#the-double-counting" aria-label="The Double-Counting">The Double-Counting</a></li>
+                <li>
+                    <a href="#the-evidence" aria-label="The Evidence">The Evidence</a><ul>
+                        
+                <li>
+                    <a href="#native-chroot" aria-label="Native (Chroot)">Native (Chroot)</a></li>
+                <li>
+                    <a href="#container-docker" aria-label="Container (Docker)">Container (Docker)</a></li></ul>
+                </li>
+                <li>
+                    <a href="#why-isnt-this-a-problem-on-discrete-gpus" aria-label="Why Isn&rsquo;t This a Problem on Discrete GPUs?">Why Isn&rsquo;t This a Problem on Discrete GPUs?</a></li>
+                <li>
+                    <a href="#the-kv-cache-impact" aria-label="The KV Cache Impact">The KV Cache Impact</a></li>
+                <li>
+                    <a href="#why-performance-is-still-the-same" aria-label="Why Performance Is Still The Same">Why Performance Is Still The Same</a></li>
+                <li>
+                    <a href="#can-docker-be-fixed" aria-label="Can Docker Be Fixed?">Can Docker Be Fixed?</a></li>
+                <li>
+                    <a href="#the-takeaway" aria-label="The Takeaway">The Takeaway</a>
+                </li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+  <div class="post-content"><h2 id="the-question-that-started-it-all">The Question That Started It All<a hidden class="anchor" aria-hidden="true" href="#the-question-that-started-it-all">#</a></h2>
+<p>After getting both Docker and native environments working, we could finally run proper benchmarks. But I kept asking myself:</p>
+<p><strong>&ldquo;Where is the 26GB going?&rdquo;</strong></p>
+<p>It wasn&rsquo;t CPU overhead - containers don&rsquo;t add 26GB of process memory.<br>
+It wasn&rsquo;t the Docker daemon - that&rsquo;s tiny.<br>
+It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
+<p>So&hellip; where?</p>
+<h2 id="traditional-gpu-systems-the-old-way">Traditional GPU Systems (The Old Way)<a hidden class="anchor" aria-hidden="true" href="#traditional-gpu-systems-the-old-way">#</a></h2>
+<p>Let&rsquo;s start with how most GPU systems work. Take an NVIDIA H100 or A100:</p>
+
+
+
+<div class="goat svg-container ">
+  
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      font-family="Menlo,Lucida Console,monospace"
+      
+        viewBox="0 0 344 105"
+      >
+      <g transform='translate(8,16)'>
+<text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>┌</text>
+<text text-anchor='middle' x='0' y='20' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='36' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='52' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='84' fill='currentColor' style='font-size:1em'>└</text>
+<text text-anchor='middle' x='8' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='8' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='16' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='16' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='24' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='24' y='52' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='24' y='68' fill='currentColor' style='font-size:1em'>6</text>
+<text text-anchor='middle' x='24' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='32' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='32' y='20' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='32' y='52' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='32' y='68' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='32' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='40' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='40' y='20' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='40' y='52' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='40' y='68' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='40' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='48' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='48' y='20' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='48' y='68' fill='currentColor' style='font-size:1em'>5</text>
+<text text-anchor='middle' x='48' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='56' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='56' y='52' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='56' y='68' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='56' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='20' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='64' y='52' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='64' y='68' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='64' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='20' fill='currentColor' style='font-size:1em'>H</text>
+<text text-anchor='middle' x='72' y='52' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='72' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='80' y='68' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='80' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='20' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='88' y='68' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='88' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='20' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='96' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='104' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='136' y='4' fill='currentColor' style='font-size:1em'>┐</text>
+<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='136' y='36' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='136' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='136' y='84' fill='currentColor' style='font-size:1em'>┘</text>
+<text text-anchor='middle' x='144' y='52' fill='currentColor' style='font-size:1em'>◄</text>
+<text text-anchor='middle' x='152' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='152' y='68' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='160' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='160' y='68' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='168' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='168' y='68' fill='currentColor' style='font-size:1em'>I</text>
+<text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='176' y='68' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>►</text>
+<text text-anchor='middle' x='192' y='4' fill='currentColor' style='font-size:1em'>┌</text>
+<text text-anchor='middle' x='192' y='20' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='192' y='36' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='192' y='52' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='192' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='192' y='84' fill='currentColor' style='font-size:1em'>└</text>
+<text text-anchor='middle' x='200' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='200' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='20' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='224' y='52' fill='currentColor' style='font-size:1em'>H</text>
+<text text-anchor='middle' x='224' y='68' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='224' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='20' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='232' y='52' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='232' y='68' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='232' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='20' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='240' y='52' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='240' y='68' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='240' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='68' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='248' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='20' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='256' y='52' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='256' y='68' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='256' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='264' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='264' y='20' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='264' y='52' fill='currentColor' style='font-size:1em'>V</text>
+<text text-anchor='middle' x='264' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='272' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='272' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='272' y='52' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='272' y='68' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='272' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='280' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='280' y='20' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='280' y='52' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='280' y='68' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='280' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='288' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='288' y='20' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='288' y='52' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='288' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='296' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='296' y='20' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='296' y='52' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='296' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='304' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='304' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='304' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='312' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='312' y='20' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='312' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='320' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='320' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='328' y='4' fill='currentColor' style='font-size:1em'>┐</text>
+<text text-anchor='middle' x='328' y='20' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='328' y='36' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='328' y='52' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='328' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='328' y='84' fill='currentColor' style='font-size:1em'>┘</text>
+</g>
+
+    </svg>
+  
+</div>
+<p><strong>Key points:</strong></p>
+<ul>
+<li>CPU has its own RAM (DDR)</li>
+<li>GPU has its own VRAM (HBM)</li>
+<li>Data moves between them over PCIe bus</li>
+<li>They&rsquo;re <strong>separate memory spaces</strong></li>
+</ul>
+<p>When Docker runs on these systems:</p>
+<ul>
+<li>Docker&rsquo;s cgroups manage <strong>CPU RAM only</strong></li>
+<li>GPU VRAM is outside Docker&rsquo;s control</li>
+<li>nvidia-docker just passes through GPU access</li>
+<li><strong>No double-counting</strong> because they&rsquo;re separate</li>
+</ul>
+<h2 id="grace-hopper-the-game-changer">Grace Hopper: The Game Changer<a hidden class="anchor" aria-hidden="true" href="#grace-hopper-the-game-changer">#</a></h2>
+<p>Now look at Grace Hopper (our DGX Spark):</p>
+
+
+
+<div class="goat svg-container ">
+  
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      font-family="Menlo,Lucida Console,monospace"
+      
+        viewBox="0 0 320 185"
+      >
+      <g transform='translate(8,16)'>
+<text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>┌</text>
+<text text-anchor='middle' x='0' y='20' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='36' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='52' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='84' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='116' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='132' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='148' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='0' y='164' fill='currentColor' style='font-size:1em'>└</text>
+<text text-anchor='middle' x='8' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='8' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='16' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='16' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='24' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='24' y='52' fill='currentColor' style='font-size:1em'>┌</text>
+<text text-anchor='middle' x='24' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='24' y='84' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='24' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='24' y='116' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='24' y='132' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='24' y='148' fill='currentColor' style='font-size:1em'>└</text>
+<text text-anchor='middle' x='24' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='32' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='32' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='32' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='32' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='40' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='40' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='40' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='40' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='48' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='48' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='48' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='48' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='56' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='56' y='20' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='56' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='56' y='68' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='56' y='84' fill='currentColor' style='font-size:1em'>┌</text>
+<text text-anchor='middle' x='56' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='56' y='116' fill='currentColor' style='font-size:1em'>└</text>
+<text text-anchor='middle' x='56' y='132' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='56' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='56' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='20' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='64' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='68' fill='currentColor' style='font-size:1em'>N</text>
+<text text-anchor='middle' x='64' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='132' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='64' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='64' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='72' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='68' fill='currentColor' style='font-size:1em'>I</text>
+<text text-anchor='middle' x='72' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='100' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='72' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='132' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='72' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='72' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='20' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='80' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='68' fill='currentColor' style='font-size:1em'>F</text>
+<text text-anchor='middle' x='80' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='100' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='80' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='132' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='80' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='80' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='88' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='68' fill='currentColor' style='font-size:1em'>I</text>
+<text text-anchor='middle' x='88' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='100' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='88' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='132' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='88' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='88' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='68' fill='currentColor' style='font-size:1em'>E</text>
+<text text-anchor='middle' x='96' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='132' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='96' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='96' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>H</text>
+<text text-anchor='middle' x='104' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='68' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='104' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='100' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='104' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='132' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='104' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='104' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='112' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='100' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='112' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='132' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='112' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='112' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='120' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='68' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='120' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='100' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='120' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='132' fill='currentColor' style='font-size:1em'>,</text>
+<text text-anchor='middle' x='120' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='120' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='128' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='68' fill='currentColor' style='font-size:1em'>E</text>
+<text text-anchor='middle' x='128' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='128' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='136' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='136' y='68' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='136' y='84' fill='currentColor' style='font-size:1em'>┐</text>
+<text text-anchor='middle' x='136' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='136' y='116' fill='currentColor' style='font-size:1em'>┘</text>
+<text text-anchor='middle' x='136' y='132' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='136' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='136' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='144' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='144' y='20' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='144' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='144' y='68' fill='currentColor' style='font-size:1em'>O</text>
+<text text-anchor='middle' x='144' y='100' fill='currentColor' style='font-size:1em'>◄</text>
+<text text-anchor='middle' x='144' y='132' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='144' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='144' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='152' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='152' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='152' y='68' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='152' y='100' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='152' y='132' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='152' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='152' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='160' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='160' y='20' fill='currentColor' style='font-size:1em'>S</text>
+<text text-anchor='middle' x='160' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='160' y='68' fill='currentColor' style='font-size:1em'>Y</text>
+<text text-anchor='middle' x='160' y='100' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='160' y='132' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='160' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='160' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='168' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='168' y='20' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='168' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='168' y='100' fill='currentColor' style='font-size:1em'>►</text>
+<text text-anchor='middle' x='168' y='132' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='168' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='168' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='176' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='176' y='68' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='176' y='84' fill='currentColor' style='font-size:1em'>┌</text>
+<text text-anchor='middle' x='176' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='176' y='116' fill='currentColor' style='font-size:1em'>└</text>
+<text text-anchor='middle' x='176' y='132' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='176' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='176' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='184' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='184' y='68' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='184' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='184' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='184' y='132' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='184' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='184' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='192' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='192' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='192' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='192' y='68' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='192' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='192' y='100' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='192' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='192' y='132' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='192' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='192' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='200' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='200' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='200' y='68' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='200' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='200' y='100' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='200' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='200' y='132' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='200' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='200' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='100' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='208' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='132' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='208' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='68' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='216' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='100' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='216' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='132' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='216' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='68' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='224' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='132' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='224' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='68' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='232' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='100' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='232' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='132' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='232' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='100' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='240' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='132' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='240' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='240' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='100' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='248' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='248' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='84' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='116' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='256' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='264' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='264' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='264' y='84' fill='currentColor' style='font-size:1em'>┐</text>
+<text text-anchor='middle' x='264' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='264' y='116' fill='currentColor' style='font-size:1em'>┘</text>
+<text text-anchor='middle' x='264' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='264' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='272' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='272' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='272' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='272' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='280' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='280' y='52' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='280' y='148' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='280' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='288' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='288' y='52' fill='currentColor' style='font-size:1em'>┐</text>
+<text text-anchor='middle' x='288' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='288' y='84' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='288' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='288' y='116' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='288' y='132' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='288' y='148' fill='currentColor' style='font-size:1em'>┘</text>
+<text text-anchor='middle' x='288' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='296' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='296' y='164' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='304' y='4' fill='currentColor' style='font-size:1em'>┐</text>
+<text text-anchor='middle' x='304' y='20' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='36' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='52' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='68' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='84' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='100' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='116' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='132' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='148' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='304' y='164' fill='currentColor' style='font-size:1em'>┘</text>
+</g>
+
+    </svg>
+  
+</div>
+<p><strong>Revolutionary differences:</strong></p>
+<ul>
+<li><strong>One memory pool</strong> for both CPU and GPU</li>
+<li>No PCIe transfers - both access the same RAM</li>
+<li>Coherent at the hardware level</li>
+<li>The CPU &ldquo;sees&rdquo; GPU allocations and vice versa</li>
+</ul>
+<p>This is elegant! No more copying between CPU and GPU. It&rsquo;s all one big shared memory space.</p>
+<h2 id="the-docker-cgroup-problem">The Docker cgroup Problem<a hidden class="anchor" aria-hidden="true" href="#the-docker-cgroup-problem">#</a></h2>
+<p>Here&rsquo;s where things go sideways.</p>
+<p>Docker uses <strong>Linux cgroups</strong> (control groups) to isolate and track container resources:</p>
+<div class="highlight"><div style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">
+<table style="border-spacing:0;padding:0;margin:0;border:0;"><tr><td style="vertical-align:top;padding:0;margin:0;border:0;">
+<pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">3
+</span></code></pre></td>
+<td style="vertical-align:top;padding:0;margin:0;border:0;;width:100%">
+<pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Docker creates a memory cgroup for each container</span>
+</span></span><span style="display:flex;"><span>/sys/fs/cgroup/docker/&lt;container_id&gt;/memory.max
+</span></span><span style="display:flex;"><span>/sys/fs/cgroup/docker/&lt;container_id&gt;/memory.current
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>On a traditional GPU system, cgroups see:</p>
+<ul>
+<li>CPU RAM: Managed by cgroup ✓</li>
+<li>GPU VRAM: Outside cgroup (invisible) ✓</li>
+</ul>
+<p>On Grace Hopper unified memory, cgroups see:</p>
+<ul>
+<li>The entire 128GB pool as &ldquo;system RAM&rdquo; ✗</li>
+</ul>
+<h2 id="the-double-counting">The Double-Counting<a hidden class="anchor" aria-hidden="true" href="#the-double-counting">#</a></h2>
+<p>Here&rsquo;s what happens when you run a model in a Docker container on Grace Hopper:</p>
+<ol>
+<li><strong>Model loads</strong> into unified memory (let&rsquo;s say 70GB)</li>
+<li><strong>CUDA driver</strong> records this as GPU allocation</li>
+<li><strong>Docker&rsquo;s cgroup</strong> sees 70GB of &ldquo;container RAM&rdquo; used</li>
+<li><strong>TensorRT-LLM</strong> tries to allocate KV cache</li>
+<li><strong>Docker thinks</strong>: &ldquo;Container is using 70GB already, only X GB left&rdquo;</li>
+<li><strong>Reality</strong>: That 70GB is THE SAME MEMORY, just counted twice!</li>
+</ol>
+<p>Result: Docker reserves extra headroom because it thinks GPU memory is separate &ldquo;container RAM&rdquo;, even though it&rsquo;s not.</p>
+<h2 id="the-evidence">The Evidence<a hidden class="anchor" aria-hidden="true" href="#the-evidence">#</a></h2>
+<p>Let&rsquo;s look at what we saw:</p>
+<h3 id="native-chroot">Native (Chroot)<a hidden class="anchor" aria-hidden="true" href="#native-chroot">#</a></h3>
+
+
+
+<div class="goat svg-container ">
+  
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      font-family="Menlo,Lucida Console,monospace"
+      
+        viewBox="0 0 400 73"
+      >
+      <g transform='translate(8,16)'>
+<text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>T</text>
+<text text-anchor='middle' x='0' y='20' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='0' y='36' fill='currentColor' style='font-size:1em'>L</text>
+<text text-anchor='middle' x='0' y='52' fill='currentColor' style='font-size:1em'>K</text>
+<text text-anchor='middle' x='8' y='4' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='8' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='8' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='8' y='52' fill='currentColor' style='font-size:1em'>V</text>
+<text text-anchor='middle' x='16' y='4' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='16' y='20' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='16' y='36' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='24' y='4' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='24' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='24' y='36' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='24' y='52' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='32' y='4' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='32' y='20' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='32' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='32' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='40' y='36' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='40' y='52' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='48' y='4' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='48' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='48' y='36' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='48' y='52' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='56' y='4' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='56' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='56' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='64' y='4' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='64' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='72' y='4' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='72' y='20' fill='currentColor' style='font-size:1em'>k</text>
+<text text-anchor='middle' x='72' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='80' y='4' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='80' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='88' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='88' y='20' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='88' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='96' y='4' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='96' y='20' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='96' y='52' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='104' y='52' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='112' y='4' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='112' y='20' fill='currentColor' style='font-size:1em'>g</text>
+<text text-anchor='middle' x='112' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='120' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='120' y='52' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='128' y='4' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='128' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='136' y='4' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='144' y='4' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='144' y='52' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='152' y='4' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='160' y='4' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='176' y='4' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>7</text>
+<text text-anchor='middle' x='176' y='36' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='184' y='4' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='184' y='36' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>7</text>
+<text text-anchor='middle' x='192' y='4' fill='currentColor' style='font-size:1em'>9</text>
+<text text-anchor='middle' x='192' y='20' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='192' y='36' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='192' y='52' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='200' y='4' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='200' y='36' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='200' y='52' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='208' y='4' fill='currentColor' style='font-size:1em'>6</text>
+<text text-anchor='middle' x='208' y='20' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='208' y='36' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='208' y='52' fill='currentColor' style='font-size:1em'>6</text>
+<text text-anchor='middle' x='216' y='4' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='224' y='20' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='224' y='36' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='224' y='52' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='232' y='4' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='232' y='20' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='232' y='36' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='232' y='52' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='240' y='4' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='248' y='52' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='256' y='52' fill='currentColor' style='font-size:1em'>9</text>
+<text text-anchor='middle' x='264' y='52' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='272' y='52' fill='currentColor' style='font-size:1em'>%</text>
+<text text-anchor='middle' x='288' y='52' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='296' y='52' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='312' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='320' y='52' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='328' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='336' y='52' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='344' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='352' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='360' y='52' fill='currentColor' style='font-size:1em'>b</text>
+<text text-anchor='middle' x='368' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='376' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='384' y='52' fill='currentColor' style='font-size:1em'>)</text>
+</g>
+
+    </svg>
+  
+</div>
+<h3 id="container-docker">Container (Docker)<a hidden class="anchor" aria-hidden="true" href="#container-docker">#</a></h3>
+
+
+
+<div class="goat svg-container ">
+  
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      font-family="Menlo,Lucida Console,monospace"
+      
+        viewBox="0 0 400 73"
+      >
+      <g transform='translate(8,16)'>
+<text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>T</text>
+<text text-anchor='middle' x='0' y='20' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='0' y='36' fill='currentColor' style='font-size:1em'>L</text>
+<text text-anchor='middle' x='0' y='52' fill='currentColor' style='font-size:1em'>K</text>
+<text text-anchor='middle' x='8' y='4' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='8' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='8' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='8' y='52' fill='currentColor' style='font-size:1em'>V</text>
+<text text-anchor='middle' x='16' y='4' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='16' y='20' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='16' y='36' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='24' y='4' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='24' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='24' y='36' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='24' y='52' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='32' y='4' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='32' y='20' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='32' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='32' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='40' y='36' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='40' y='52' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='48' y='4' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='48' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='48' y='36' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='48' y='52' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='56' y='4' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='56' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='56' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='64' y='4' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='64' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='72' y='4' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='72' y='20' fill='currentColor' style='font-size:1em'>k</text>
+<text text-anchor='middle' x='72' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='80' y='4' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='80' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='88' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='88' y='20' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='88' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='96' y='4' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='96' y='20' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='96' y='52' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='104' y='52' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='112' y='4' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='112' y='20' fill='currentColor' style='font-size:1em'>g</text>
+<text text-anchor='middle' x='112' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='120' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='120' y='52' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='128' y='4' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='128' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='136' y='4' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='144' y='4' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='144' y='52' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='152' y='4' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='160' y='4' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='176' y='4' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='176' y='36' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='184' y='4' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='184' y='36' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='192' y='4' fill='currentColor' style='font-size:1em'>9</text>
+<text text-anchor='middle' x='192' y='20' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='192' y='36' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='192' y='52' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='200' y='4' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='200' y='36' fill='currentColor' style='font-size:1em'>7</text>
+<text text-anchor='middle' x='200' y='52' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='208' y='4' fill='currentColor' style='font-size:1em'>6</text>
+<text text-anchor='middle' x='208' y='20' fill='currentColor' style='font-size:1em'>9</text>
+<text text-anchor='middle' x='208' y='36' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='208' y='52' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='216' y='4' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='216' y='20' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='224' y='36' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='224' y='52' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='232' y='4' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='232' y='20' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='232' y='36' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='232' y='52' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='240' y='4' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='240' y='20' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='248' y='52' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='256' y='52' fill='currentColor' style='font-size:1em'>9</text>
+<text text-anchor='middle' x='264' y='20' fill='currentColor' style='font-size:1em'>←</text>
+<text text-anchor='middle' x='264' y='52' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='272' y='52' fill='currentColor' style='font-size:1em'>%</text>
+<text text-anchor='middle' x='280' y='20' fill='currentColor' style='font-size:1em'>W</text>
+<text text-anchor='middle' x='288' y='20' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='288' y='52' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='296' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='296' y='52' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='304' y='20' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='312' y='20' fill='currentColor' style='font-size:1em'>?</text>
+<text text-anchor='middle' x='312' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='320' y='20' fill='currentColor' style='font-size:1em'>!</text>
+<text text-anchor='middle' x='320' y='52' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='328' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='336' y='52' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='344' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='352' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='360' y='52' fill='currentColor' style='font-size:1em'>b</text>
+<text text-anchor='middle' x='368' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='376' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='384' y='52' fill='currentColor' style='font-size:1em'>)</text>
+</g>
+
+    </svg>
+  
+</div>
+<p>Docker&rsquo;s cgroup sees 104.92GB used, but the actual model only needs 78GB. The difference (26.6GB) is <strong>phantom overhead</strong> from Docker&rsquo;s memory accounting trying to &ldquo;reserve&rdquo; space that&rsquo;s already in use.</p>
+<h2 id="why-isnt-this-a-problem-on-discrete-gpus">Why Isn&rsquo;t This a Problem on Discrete GPUs?<a hidden class="anchor" aria-hidden="true" href="#why-isnt-this-a-problem-on-discrete-gpus">#</a></h2>
+<p>On H100/A100 systems, cgroups <strong>can&rsquo;t even see</strong> GPU VRAM. It&rsquo;s on a separate PCIe device. So there&rsquo;s no double-counting:</p>
+
+
+
+<div class="goat svg-container ">
+  
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      font-family="Menlo,Lucida Console,monospace"
+      
+        viewBox="0 0 384 185"
+      >
+      <g transform='translate(8,16)'>
+<circle cx='40' cy='64' r='6' stroke='currentColor' fill='#fff'></circle>
+<circle cx='80' cy='160' r='6' stroke='currentColor' fill='#fff'></circle>
+<text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='0' y='20' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='36' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='52' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='68' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='100' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='0' y='116' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='132' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='148' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='164' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='8' y='4' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='8' y='100' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='16' y='4' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='16' y='20' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='16' y='36' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='16' y='52' fill='currentColor' style='font-size:1em'>T</text>
+<text text-anchor='middle' x='16' y='68' fill='currentColor' style='font-size:1em'>N</text>
+<text text-anchor='middle' x='16' y='100' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='16' y='116' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='16' y='132' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='16' y='148' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='16' y='164' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='24' y='4' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='24' y='20' fill='currentColor' style='font-size:1em'>g</text>
+<text text-anchor='middle' x='24' y='36' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='24' y='52' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='24' y='68' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='24' y='100' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='24' y='116' fill='currentColor' style='font-size:1em'>g</text>
+<text text-anchor='middle' x='24' y='132' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='24' y='148' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='24' y='164' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='32' y='4' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='32' y='20' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='32' y='36' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='32' y='52' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='32' y='100' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='32' y='116' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='32' y='132' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='32' y='148' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='32' y='164' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='40' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='40' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='40' y='36' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='40' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='40' y='100' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='40' y='116' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='40' y='132' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='40' y='148' fill='currentColor' style='font-size:1em'>k</text>
+<text text-anchor='middle' x='40' y='164' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='48' y='4' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='48' y='20' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='48' y='52' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='48' y='68' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='48' y='100' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='48' y='116' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='48' y='148' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='48' y='164' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='56' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='56' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='56' y='36' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='56' y='52' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='56' y='68' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='56' y='116' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='56' y='132' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='56' y='148' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='56' y='164' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='64' y='36' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='64' y='68' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='64' y='100' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='64' y='132' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='64' y='148' fill='currentColor' style='font-size:1em'>'</text>
+<text text-anchor='middle' x='64' y='164' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='72' y='4' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='72' y='20' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='72' y='36' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='72' y='52' fill='currentColor' style='font-size:1em'>6</text>
+<text text-anchor='middle' x='72' y='68' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='72' y='100' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='72' y='116' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='72' y='132' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='72' y='148' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='80' y='4' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='80' y='20' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='80' y='36' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='80' y='52' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='80' y='68' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='80' y='100' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='80' y='116' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='80' y='132' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='88' y='4' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='88' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='88' y='36' fill='currentColor' style='font-size:1em'>k</text>
+<text text-anchor='middle' x='88' y='68' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='88' y='100' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='88' y='116' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='88' y='132' fill='currentColor' style='font-size:1em'>k</text>
+<text text-anchor='middle' x='88' y='148' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='88' y='164' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='96' y='4' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='96' y='20' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='96' y='36' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='96' y='52' fill='currentColor' style='font-size:1em'>+</text>
+<text text-anchor='middle' x='96' y='100' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='96' y='116' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='96' y='132' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='96' y='148' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='96' y='164' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>k</text>
+<text text-anchor='middle' x='104' y='36' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='104' y='68' fill='currentColor' style='font-size:1em'>✓</text>
+<text text-anchor='middle' x='104' y='100' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='104' y='116' fill='currentColor' style='font-size:1em'>k</text>
+<text text-anchor='middle' x='104' y='132' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='104' y='148' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='104' y='164' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='112' y='20' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='112' y='52' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='112' y='116' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='112' y='148' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='112' y='164' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='120' y='36' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='120' y='52' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='120' y='100' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='120' y='116' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='120' y='132' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='120' y='148' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='120' y='164' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='128' y='36' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='128' y='100' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='128' y='132' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='128' y='148' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='128' y='164' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='136' y='36' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>=</text>
+<text text-anchor='middle' x='136' y='100' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='136' y='116' fill='currentColor' style='font-size:1em'>"</text>
+<text text-anchor='middle' x='136' y='132' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='136' y='148' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='136' y='164' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='144' y='20' fill='currentColor' style='font-size:1em'>P</text>
+<text text-anchor='middle' x='144' y='100' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='144' y='116' fill='currentColor' style='font-size:1em'>S</text>
+<text text-anchor='middle' x='144' y='132' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='144' y='148' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='152' y='20' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='152' y='36' fill='currentColor' style='font-size:1em'>V</text>
+<text text-anchor='middle' x='152' y='52' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='152' y='100' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='152' y='116' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='152' y='148' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='152' y='164' fill='currentColor' style='font-size:1em'>✗</text>
+<text text-anchor='middle' x='160' y='36' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='160' y='52' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='160' y='100' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='160' y='116' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='160' y='132' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='160' y='148' fill='currentColor' style='font-size:1em'>g</text>
+<text text-anchor='middle' x='168' y='20' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='168' y='36' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='168' y='52' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='168' y='116' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='168' y='132' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='168' y='148' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='176' y='36' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='176' y='100' fill='currentColor' style='font-size:1em'>H</text>
+<text text-anchor='middle' x='176' y='116' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='184' y='100' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='184' y='116' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='184' y='132' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='184' y='148' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='192' y='36' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='192' y='100' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='192' y='132' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='192' y='148' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='200' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='200' y='100' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='200' y='116' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='200' y='132' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='200' y='148' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='208' y='20' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='208' y='36' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='208' y='100' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='208' y='116' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='208' y='132' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='208' y='148' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='216' y='20' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='216' y='36' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='216' y='100' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='216' y='116' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='216' y='148' fill='currentColor' style='font-size:1em'>u</text>
+<text text-anchor='middle' x='224' y='20' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='224' y='36' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='224' y='100' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='224' y='116' fill='currentColor' style='font-size:1em'>"</text>
+<text text-anchor='middle' x='224' y='132' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='224' y='148' fill='currentColor' style='font-size:1em'>s</text>
+<text text-anchor='middle' x='232' y='36' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='232' y='100' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='232' y='132' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='232' y='148' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='240' y='20' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='240' y='36' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='240' y='116' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='240' y='132' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='240' y='148' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='248' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='248' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='248' y='116' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='248' y='132' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='248' y='148' fill='currentColor' style='font-size:1em'>!</text>
+<text text-anchor='middle' x='256' y='20' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='256' y='36' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='256' y='116' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='264' y='20' fill='currentColor' style='font-size:1em'>g</text>
+<text text-anchor='middle' x='264' y='36' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='264' y='116' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='264' y='132' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='272' y='20' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='272' y='116' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='272' y='132' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='280' y='20' fill='currentColor' style='font-size:1em'>,</text>
+<text text-anchor='middle' x='280' y='36' fill='currentColor' style='font-size:1em'>(</text>
+<text text-anchor='middle' x='280' y='116' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='280' y='132' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='288' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='288' y='116' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='288' y='132' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='296' y='20' fill='currentColor' style='font-size:1em'>6</text>
+<text text-anchor='middle' x='296' y='36' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='296' y='132' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='304' y='20' fill='currentColor' style='font-size:1em'>4</text>
+<text text-anchor='middle' x='304' y='36' fill='currentColor' style='font-size:1em'>g</text>
+<text text-anchor='middle' x='312' y='20' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='312' y='36' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='320' y='20' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='320' y='36' fill='currentColor' style='font-size:1em'>,</text>
+<text text-anchor='middle' x='328' y='20' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='336' y='36' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='344' y='36' fill='currentColor' style='font-size:1em'>0</text>
+<text text-anchor='middle' x='352' y='36' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='360' y='36' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='368' y='36' fill='currentColor' style='font-size:1em'>)</text>
+</g>
+
+    </svg>
+  
+</div>
+<h2 id="the-kv-cache-impact">The KV Cache Impact<a hidden class="anchor" aria-hidden="true" href="#the-kv-cache-impact">#</a></h2>
+<p>This double-counting has a massive effect on KV cache:</p>
+
+
+
+<div class="goat svg-container ">
+  
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      font-family="Menlo,Lucida Console,monospace"
+      
+        viewBox="0 0 312 73"
+      >
+      <g transform='translate(8,16)'>
+<text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>A</text>
+<text text-anchor='middle' x='0' y='20' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='36' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='0' y='52' fill='currentColor' style='font-size:1em'>-</text>
+<text text-anchor='middle' x='8' y='4' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='16' y='4' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='16' y='20' fill='currentColor' style='font-size:1em'>N</text>
+<text text-anchor='middle' x='16' y='36' fill='currentColor' style='font-size:1em'>C</text>
+<text text-anchor='middle' x='16' y='52' fill='currentColor' style='font-size:1em'>D</text>
+<text text-anchor='middle' x='24' y='4' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='24' y='20' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='24' y='36' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='24' y='52' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='32' y='4' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='32' y='20' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='32' y='36' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='32' y='52' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='40' y='4' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='40' y='20' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='40' y='36' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='40' y='52' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='48' y='4' fill='currentColor' style='font-size:1em'>b</text>
+<text text-anchor='middle' x='48' y='20' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='48' y='36' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='48' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='56' y='4' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='56' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='56' y='36' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='56' y='52' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='64' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='64' y='20' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='64' y='36' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='64' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='72' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='72' y='52' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='80' y='4' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='80' y='36' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='80' y='52' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='88' y='4' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='88' y='36' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='88' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='96' y='4' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='96' y='52' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='104' y='36' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='112' y='4' fill='currentColor' style='font-size:1em'>K</text>
+<text text-anchor='middle' x='112' y='20' fill='currentColor' style='font-size:1em'>7</text>
+<text text-anchor='middle' x='112' y='36' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='112' y='52' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='120' y='4' fill='currentColor' style='font-size:1em'>V</text>
+<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='120' y='36' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='120' y='52' fill='currentColor' style='font-size:1em'>.</text>
+<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='128' y='36' fill='currentColor' style='font-size:1em'>3</text>
+<text text-anchor='middle' x='128' y='52' fill='currentColor' style='font-size:1em'>8</text>
+<text text-anchor='middle' x='136' y='4' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>6</text>
+<text text-anchor='middle' x='136' y='36' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>x</text>
+<text text-anchor='middle' x='144' y='4' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='152' y='4' fill='currentColor' style='font-size:1em'>c</text>
+<text text-anchor='middle' x='152' y='20' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='152' y='36' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='152' y='52' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='160' y='4' fill='currentColor' style='font-size:1em'>h</text>
+<text text-anchor='middle' x='160' y='20' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='160' y='36' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='160' y='52' fill='currentColor' style='font-size:1em'>O</text>
+<text text-anchor='middle' x='168' y='4' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='168' y='52' fill='currentColor' style='font-size:1em'>R</text>
+<text text-anchor='middle' x='176' y='4' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>E</text>
+<text text-anchor='middle' x='192' y='52' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='200' y='52' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='216' y='52' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='224' y='52' fill='currentColor' style='font-size:1em'>a</text>
+<text text-anchor='middle' x='232' y='52' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='240' y='52' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='248' y='52' fill='currentColor' style='font-size:1em'>v</text>
+<text text-anchor='middle' x='256' y='52' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='272' y='52' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='280' y='52' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='288' y='52' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='296' y='52' fill='currentColor' style='font-size:1em'>e</text>
+</g>
+
+    </svg>
+  
+</div>
+<p>More KV cache means:</p>
+<ul>
+<li>Longer context windows</li>
+<li>Higher batch sizes</li>
+<li>More concurrent requests</li>
+<li>Better overall throughput scaling</li>
+</ul>
+<p>That 26GB overhead isn&rsquo;t just wasted RAM - it&rsquo;s <strong>stolen capacity</strong> for serving workloads.</p>
+<h2 id="why-performance-is-still-the-same">Why Performance Is Still The Same<a hidden class="anchor" aria-hidden="true" href="#why-performance-is-still-the-same">#</a></h2>
+<p>You might wonder: &ldquo;If Docker has less KV cache, why is throughput identical?&rdquo;</p>
+<p>Good question! For our specific benchmark (50 requests, 128 output tokens):</p>
+<ul>
+<li>Even 13GB of KV cache was enough</li>
+<li>We weren&rsquo;t hitting the cache limit</li>
+<li>Throughput was compute-bound, not memory-bound</li>
+</ul>
+<p>But in production with:</p>
+<ul>
+<li>Longer contexts (8k, 32k, 128k tokens)</li>
+<li>Higher batch sizes</li>
+<li>Many concurrent users</li>
+</ul>
+<p>That reduced KV cache would <strong>absolutely</strong> become a bottleneck.</p>
+<h2 id="can-docker-be-fixed">Can Docker Be Fixed?<a hidden class="anchor" aria-hidden="true" href="#can-docker-be-fixed">#</a></h2>
+<p>Maybe? Potential solutions:</p>
+<ol>
+<li><strong>Update nvidia-container-toolkit</strong> for unified memory awareness</li>
+<li><strong>Use <code>--memory=unlimited</code></strong> to disable cgroup memory limits</li>
+<li><strong>Special cgroup configuration</strong> for Grace Hopper</li>
+<li><strong>Wait for Docker/kernel patches</strong> that understand unified memory</li>
+</ol>
+<p>But for now, the simplest solution: <strong>Use native execution for large models on Grace Hopper</strong>.</p>
+<h2 id="the-takeaway">The Takeaway<a hidden class="anchor" aria-hidden="true" href="#the-takeaway">#</a></h2>
+<p>This isn&rsquo;t Docker being &ldquo;bad&rdquo; or Grace Hopper being &ldquo;broken.&rdquo; It&rsquo;s a <strong>mismatch between technology generations</strong>:</p>
+<ul>
+<li>Docker&rsquo;s cgroups: Designed for discrete GPU era</li>
+<li>Grace Hopper: Next-gen unified memory architecture</li>
+<li>Result: Software assumptions don&rsquo;t match hardware reality</li>
+</ul>
+<p>And that&rsquo;s why you can&rsquo;t just blame the hardware. The entire stack matters.</p>
+<p>In the next post, I&rsquo;ll show you the data: 60 comprehensive benchmark runs across 3 different models, proving this pattern holds consistently.</p>
+<hr>
+<p><strong>Previous</strong>: <a href="../02-mpi-chroot-nightmare">← Part 2: MPI and Chroot Nightmare</a><br>
+<strong>Next</strong>: <a href="../04-the-data">Part 4: The Data - 60 Runs Don&rsquo;t Lie →</a></p>
+<p><strong>GitHub Repo</strong>: <a href="https://github.com/brandonrc/benchmark-spark">benchmark-spark</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/dgx-spark/">Dgx-Spark</a></li>
+      <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/grace-hopper/">Grace-Hopper</a></li>
+      <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/unified-memory/">Unified-Memory</a></li>
+      <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/cgroups/">Cgroups</a></li>
+      <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/docker/">Docker</a></li>
+    </ul>
+<nav class="paginav">
+  <a class="prev" href="https://brandonrc.github.io/dgx-spark-blog/posts/04-the-data/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>The Data: 60 Runs Don&#39;t Lie</span>
+  </a>
+  <a class="next" href="https://brandonrc.github.io/dgx-spark-blog/posts/02-mpi-chroot-nightmare/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Down the Rabbit Hole: The MPI and Chroot Nightmare</span>
+  </a>
+</nav>
+
+
+<ul class="share-buttons">
+    <li>
+        <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on x"
+            href="https://x.com/intent/tweet/?text=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts&amp;url=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f&amp;hashtags=dgx-spark%2cgrace-hopper%2cunified-memory%2ccgroups%2cdocker">
+            <svg version="1.1" viewBox="0 0 512 512" xml:space="preserve" height="30px" width="30px" fill="currentColor">
+                <path
+                    d="M512 62.554 L 512 449.446 C 512 483.97 483.97 512 449.446 512 L 62.554 512 C 28.03 512 0 483.97 0 449.446 L 0 62.554 C 0 28.03 28.029 0 62.554 0 L 449.446 0 C 483.971 0 512 28.03 512 62.554 Z M 269.951 190.75 L 182.567 75.216 L 56 75.216 L 207.216 272.95 L 63.9 436.783 L 125.266 436.783 L 235.9 310.383 L 332.567 436.783 L 456 436.783 L 298.367 228.367 L 432.367 75.216 L 371.033 75.216 Z M 127.633 110 L 164.101 110 L 383.481 400.065 L 349.5 400.065 Z" />
+            </svg>
+        </a>
+    </li>
+    <li>
+        <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on linkedin"
+            href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f&amp;title=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts&amp;summary=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts&amp;source=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f">
+            <svg version="1.1" viewBox="0 0 512 512" xml:space="preserve" height="30px" width="30px" fill="currentColor">
+                <path
+                    d="M449.446,0c34.525,0 62.554,28.03 62.554,62.554l0,386.892c0,34.524 -28.03,62.554 -62.554,62.554l-386.892,0c-34.524,0 -62.554,-28.03 -62.554,-62.554l0,-386.892c0,-34.524 28.029,-62.554 62.554,-62.554l386.892,0Zm-288.985,423.278l0,-225.717l-75.04,0l0,225.717l75.04,0Zm270.539,0l0,-129.439c0,-69.333 -37.018,-101.586 -86.381,-101.586c-39.804,0 -57.634,21.891 -67.617,37.266l0,-31.958l-75.021,0c0.995,21.181 0,225.717 0,225.717l75.02,0l0,-126.056c0,-6.748 0.486,-13.492 2.474,-18.315c5.414,-13.475 17.767,-27.434 38.494,-27.434c27.135,0 38.007,20.707 38.007,51.037l0,120.768l75.024,0Zm-307.552,-334.556c-25.674,0 -42.448,16.879 -42.448,39.002c0,21.658 16.264,39.002 41.455,39.002l0.484,0c26.165,0 42.452,-17.344 42.452,-39.002c-0.485,-22.092 -16.241,-38.954 -41.943,-39.002Z" />
+            </svg>
+        </a>
+    </li>
+    <li>
+        <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on reddit"
+            href="https://reddit.com/submit?url=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f&title=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts">
+            <svg version="1.1" viewBox="0 0 512 512" xml:space="preserve" height="30px" width="30px" fill="currentColor">
+                <path
+                    d="M449.446,0c34.525,0 62.554,28.03 62.554,62.554l0,386.892c0,34.524 -28.03,62.554 -62.554,62.554l-386.892,0c-34.524,0 -62.554,-28.03 -62.554,-62.554l0,-386.892c0,-34.524 28.029,-62.554 62.554,-62.554l386.892,0Zm-3.446,265.638c0,-22.964 -18.616,-41.58 -41.58,-41.58c-11.211,0 -21.361,4.457 -28.841,11.666c-28.424,-20.508 -67.586,-33.757 -111.204,-35.278l18.941,-89.121l61.884,13.157c0.756,15.734 13.642,28.29 29.56,28.29c16.407,0 29.706,-13.299 29.706,-29.701c0,-16.403 -13.299,-29.702 -29.706,-29.702c-11.666,0 -21.657,6.792 -26.515,16.578l-69.105,-14.69c-1.922,-0.418 -3.939,-0.042 -5.585,1.036c-1.658,1.073 -2.811,2.761 -3.224,4.686l-21.152,99.438c-44.258,1.228 -84.046,14.494 -112.837,35.232c-7.468,-7.164 -17.589,-11.591 -28.757,-11.591c-22.965,0 -41.585,18.616 -41.585,41.58c0,16.896 10.095,31.41 24.568,37.918c-0.639,4.135 -0.99,8.328 -0.99,12.576c0,63.977 74.469,115.836 166.33,115.836c91.861,0 166.334,-51.859 166.334,-115.836c0,-4.218 -0.347,-8.387 -0.977,-12.493c14.564,-6.47 24.735,-21.034 24.735,-38.001Zm-119.474,108.193c-20.27,20.241 -59.115,21.816 -70.534,21.816c-11.428,0 -50.277,-1.575 -70.522,-21.82c-3.007,-3.008 -3.007,-7.882 0,-10.889c3.003,-2.999 7.882,-3.003 10.885,0c12.777,12.781 40.11,17.317 59.637,17.317c19.522,0 46.86,-4.536 59.657,-17.321c3.016,-2.999 7.886,-2.995 10.885,0.008c3.008,3.011 3.003,7.882 -0.008,10.889Zm-5.23,-48.781c-16.373,0 -29.701,-13.324 -29.701,-29.698c0,-16.381 13.328,-29.714 29.701,-29.714c16.378,0 29.706,13.333 29.706,29.714c0,16.374 -13.328,29.698 -29.706,29.698Zm-160.386,-29.702c0,-16.381 13.328,-29.71 29.714,-29.71c16.369,0 29.689,13.329 29.689,29.71c0,16.373 -13.32,29.693 -29.689,29.693c-16.386,0 -29.714,-13.32 -29.714,-29.693Z" />
+            </svg>
+        </a>
+    </li>
+    <li>
+        <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on facebook"
+            href="https://facebook.com/sharer/sharer.php?u=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f">
+            <svg version="1.1" viewBox="0 0 512 512" xml:space="preserve" height="30px" width="30px" fill="currentColor">
+                <path
+                    d="M449.446,0c34.525,0 62.554,28.03 62.554,62.554l0,386.892c0,34.524 -28.03,62.554 -62.554,62.554l-106.468,0l0,-192.915l66.6,0l12.672,-82.621l-79.272,0l0,-53.617c0,-22.603 11.073,-44.636 46.58,-44.636l36.042,0l0,-70.34c0,0 -32.71,-5.582 -63.982,-5.582c-65.288,0 -107.96,39.569 -107.96,111.204l0,62.971l-72.573,0l0,82.621l72.573,0l0,192.915l-191.104,0c-34.524,0 -62.554,-28.03 -62.554,-62.554l0,-386.892c0,-34.524 28.029,-62.554 62.554,-62.554l386.892,0Z" />
+            </svg>
+        </a>
+    </li>
+    <li>
+        <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on whatsapp"
+            href="https://api.whatsapp.com/send?text=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts%20-%20https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f">
+            <svg version="1.1" viewBox="0 0 512 512" xml:space="preserve" height="30px" width="30px" fill="currentColor">
+                <path
+                    d="M449.446,0c34.525,0 62.554,28.03 62.554,62.554l0,386.892c0,34.524 -28.03,62.554 -62.554,62.554l-386.892,0c-34.524,0 -62.554,-28.03 -62.554,-62.554l0,-386.892c0,-34.524 28.029,-62.554 62.554,-62.554l386.892,0Zm-58.673,127.703c-33.842,-33.881 -78.847,-52.548 -126.798,-52.568c-98.799,0 -179.21,80.405 -179.249,179.234c-0.013,31.593 8.241,62.428 23.927,89.612l-25.429,92.884l95.021,-24.925c26.181,14.28 55.659,21.807 85.658,21.816l0.074,0c98.789,0 179.206,-80.413 179.247,-179.243c0.018,-47.895 -18.61,-92.93 -52.451,-126.81Zm-126.797,275.782l-0.06,0c-26.734,-0.01 -52.954,-7.193 -75.828,-20.767l-5.441,-3.229l-56.386,14.792l15.05,-54.977l-3.542,-5.637c-14.913,-23.72 -22.791,-51.136 -22.779,-79.287c0.033,-82.142 66.867,-148.971 149.046,-148.971c39.793,0.014 77.199,15.531 105.329,43.692c28.128,28.16 43.609,65.592 43.594,105.4c-0.034,82.149 -66.866,148.983 -148.983,148.984Zm81.721,-111.581c-4.479,-2.242 -26.499,-13.075 -30.604,-14.571c-4.105,-1.495 -7.091,-2.241 -10.077,2.241c-2.986,4.483 -11.569,14.572 -14.182,17.562c-2.612,2.988 -5.225,3.364 -9.703,1.12c-4.479,-2.241 -18.91,-6.97 -36.017,-22.23c-13.314,-11.876 -22.304,-26.542 -24.916,-31.026c-2.612,-4.484 -0.279,-6.908 1.963,-9.14c2.016,-2.007 4.48,-5.232 6.719,-7.847c2.24,-2.615 2.986,-4.484 4.479,-7.472c1.493,-2.99 0.747,-5.604 -0.374,-7.846c-1.119,-2.241 -10.077,-24.288 -13.809,-33.256c-3.635,-8.733 -7.327,-7.55 -10.077,-7.688c-2.609,-0.13 -5.598,-0.158 -8.583,-0.158c-2.986,0 -7.839,1.121 -11.944,5.604c-4.105,4.484 -15.675,15.32 -15.675,37.364c0,22.046 16.048,43.342 18.287,46.332c2.24,2.99 31.582,48.227 76.511,67.627c10.685,4.615 19.028,7.371 25.533,9.434c10.728,3.41 20.492,2.929 28.209,1.775c8.605,-1.285 26.499,-10.833 30.231,-21.295c3.732,-10.464 3.732,-19.431 2.612,-21.298c-1.119,-1.869 -4.105,-2.99 -8.583,-5.232Z" />
+            </svg>
+        </a>
+    </li>
+    <li>
+        <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on telegram"
+            href="https://telegram.me/share/url?text=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts&amp;url=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f">
+            <svg version="1.1" xml:space="preserve" viewBox="2 2 28 28" height="30px" width="30px" fill="currentColor">
+                <path
+                    d="M26.49,29.86H5.5a3.37,3.37,0,0,1-2.47-1,3.35,3.35,0,0,1-1-2.47V5.48A3.36,3.36,0,0,1,3,3,3.37,3.37,0,0,1,5.5,2h21A3.38,3.38,0,0,1,29,3a3.36,3.36,0,0,1,1,2.46V26.37a3.35,3.35,0,0,1-1,2.47A3.38,3.38,0,0,1,26.49,29.86Zm-5.38-6.71a.79.79,0,0,0,.85-.66L24.73,9.24a.55.55,0,0,0-.18-.46.62.62,0,0,0-.41-.17q-.08,0-16.53,6.11a.59.59,0,0,0-.41.59.57.57,0,0,0,.43.52l4,1.24,1.61,4.83a.62.62,0,0,0,.63.43.56.56,0,0,0,.4-.17L16.54,20l4.09,3A.9.9,0,0,0,21.11,23.15ZM13.8,20.71l-1.21-4q8.72-5.55,8.78-5.55c.15,0,.23,0,.23.16a.18.18,0,0,1,0,.06s-2.51,2.3-7.52,6.8Z" />
+            </svg>
+        </a>
+    </li>
+    <li>
+        <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on ycombinator"
+            href="https://news.ycombinator.com/submitlink?t=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts&u=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f">
+            <svg version="1.1" xml:space="preserve" width="30px" height="30px" viewBox="0 0 512 512" fill="currentColor"
+                xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape">
+                <path
+                    d="M449.446 0C483.971 0 512 28.03 512 62.554L512 449.446C512 483.97 483.97 512 449.446 512L62.554 512C28.03 512 0 483.97 0 449.446L0 62.554C0 28.03 28.029 0 62.554 0L449.446 0ZM183.8767 87.9921H121.8427L230.6673 292.4508V424.0079H281.3328V292.4508L390.1575 87.9921H328.1233L256 238.2489z" />
+            </svg>
+        </a>
+    </li>
+</ul>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://brandonrc.github.io/dgx-spark-blog/">DGX Spark Deep Dive</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

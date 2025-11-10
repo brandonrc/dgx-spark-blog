@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>DGX Spark Deep Dive</title>
+    <link>https://brandonrc.github.io/dgx-spark-blog/</link>
+    <description>Recent content on DGX Spark Deep Dive</description>
+    <generator>Hugo -- 0.146.1</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sat, 08 Nov 2025 14:00:00 +0000</lastBuildDate>
+    <atom:link href="https://brandonrc.github.io/dgx-spark-blog/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>What We Learned (And What&#39;s Next)</title>
+      <link>https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/</link>
+      <pubDate>Sat, 08 Nov 2025 14:00:00 +0000</pubDate>
+      <guid>https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/</guid>
+      <description>After 60 benchmarks and hours of debugging, here&amp;#39;s what we learned about Grace Hopper, Docker, and the importance of understanding your full stack. Plus: what we&amp;#39;re investigating next.</description>
+    </item>
+    <item>
+      <title>The Data: 60 Runs Don&#39;t Lie</title>
+      <link>https://brandonrc.github.io/dgx-spark-blog/posts/04-the-data/</link>
+      <pubDate>Sat, 08 Nov 2025 13:00:00 +0000</pubDate>
+      <guid>https://brandonrc.github.io/dgx-spark-blog/posts/04-the-data/</guid>
+      <description>We ran 60 comprehensive benchmarks across three different model sizes. The results are consistent, surprising, and prove that unified memory &#43; Docker cgroups = significant overhead.</description>
+    </item>
+    <item>
+      <title>The Unified Memory Revelation: Why Docker Double-Counts</title>
+      <link>https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/</link>
+      <pubDate>Sat, 08 Nov 2025 12:00:00 +0000</pubDate>
+      <guid>https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/</guid>
+      <description>The &amp;#39;aha!&amp;#39; moment: Docker&amp;#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.</description>
+    </item>
+    <item>
+      <title>Down the Rabbit Hole: The MPI and Chroot Nightmare</title>
+      <link>https://brandonrc.github.io/dgx-spark-blog/posts/02-mpi-chroot-nightmare/</link>
+      <pubDate>Sat, 08 Nov 2025 11:00:00 +0000</pubDate>
+      <guid>https://brandonrc.github.io/dgx-spark-blog/posts/02-mpi-chroot-nightmare/</guid>
+      <description>Sometimes the hardest part of debugging isn&amp;#39;t finding the bug - it&amp;#39;s just getting to a clean test environment. Here&amp;#39;s how we spent hours fighting MPI libraries and chroot configurations before we could even start benchmarking.</description>
+    </item>
+    <item>
+      <title>The Mystery: Don&#39;t Just Blame the Hardware</title>
+      <link>https://brandonrc.github.io/dgx-spark-blog/posts/01-the-mystery/</link>
+      <pubDate>Sat, 08 Nov 2025 10:00:00 +0000</pubDate>
+      <guid>https://brandonrc.github.io/dgx-spark-blog/posts/01-the-mystery/</guid>
+      <description>YouTube tech reviewers were quick to blame NVIDIA&amp;#39;s new DGX Spark for being slow. But was it really the hardware&amp;#39;s fault, or were we missing something deeper in the software stack?</description>
+    </item>
+    <item>
+      <title>About This Investigation</title>
+      <link>https://brandonrc.github.io/dgx-spark-blog/about/</link>
+      <pubDate>Sat, 08 Nov 2025 00:00:00 +0000</pubDate>
+      <guid>https://brandonrc.github.io/dgx-spark-blog/about/</guid>
+      <description>&lt;h2 id=&#34;who--why&#34;&gt;Who &amp;amp; Why&lt;/h2&gt;
+&lt;p&gt;I&amp;rsquo;m Brandon Geraci, and I was tired of seeing YouTube tech reviewers blame NVIDIA&amp;rsquo;s DGX Spark hardware for being &amp;ldquo;slow&amp;rdquo; or &amp;ldquo;disappointing&amp;rdquo; without providing any technical analysis.&lt;/p&gt;
+&lt;p&gt;So I decided to actually investigate what was going on.&lt;/p&gt;
+&lt;h2 id=&#34;what-we-found&#34;&gt;What We Found&lt;/h2&gt;
+&lt;p&gt;After 60 comprehensive benchmarks across 3 different LLM models, we discovered:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Docker containers use 20-30 GB more memory&lt;/strong&gt; than native execution on Grace Hopper&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;KV cache is reduced by 40-63%&lt;/strong&gt; in containers&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Performance is identical&lt;/strong&gt; - same throughput, no speed penalty&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Root cause&lt;/strong&gt;: Docker&amp;rsquo;s cgroups double-count unified memory&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This isn&amp;rsquo;t a hardware problem. It&amp;rsquo;s a software stack mismatch.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
