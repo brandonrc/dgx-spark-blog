@@ -203,8 +203,9 @@ Together, you and I can make GPU computing better for everyone - by actually und
 ---
 
 **Previous**: [← Part 4: The Data - 60 Runs Don't Lie](../04-the-data)
+**Next**: [Part 6: KV Cache Deep Dive - The 2x Reduction Mystery →](../06-kv-cache-deep-dive)
 
-**GitHub Repo**: [benchmark-spark](https://github.com/brandonrc/benchmark-spark)  
+**GitHub Repo**: [benchmark-spark](https://github.com/brandonrc/benchmark-spark)
 **Phase 2 Tracking**: [GitHub Issues](https://github.com/brandonrc/benchmark-spark/issues)
 
 ---

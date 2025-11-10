@@ -5,11 +5,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="robots" content="index, follow">
-<title>Posts | DGX Spark Deep Dive</title>
+<title>Tensorrt-Llm | DGX Spark Deep Dive</title>
 <meta name="keywords" content="">
-<meta name="description" content="Posts - DGX Spark Deep Dive">
+<meta name="description" content="A technical journey debugging container performance on NVIDIA DGX Spark with Grace Hopper">
 <meta name="author" content="Brandon Geraci">
-<link rel="canonical" href="https://brandonrc.github.io/dgx-spark-blog/posts/">
+<link rel="canonical" href="https://brandonrc.github.io/dgx-spark-blog/tags/tensorrt-llm/">
 <link crossorigin="anonymous" href="/dgx-spark-blog/assets/css/stylesheet.343cc480b9ffc8f04ccbe5e968ad674880cab773ec19905e93033065c1e7a804.css" integrity="sha256-NDzEgLn/yPBMy&#43;XpaK1nSIDKt3PsGZBekwMwZcHnqAQ=" rel="preload stylesheet" as="style">
 <link rel="icon" href="https://brandonrc.github.io/dgx-spark-blog/favicon.ico">
 <link rel="icon" type="image/png" sizes="16x16" href="https://brandonrc.github.io/dgx-spark-blog/favicon-16x16.png">
@@ -18,8 +18,8 @@
 <link rel="mask-icon" href="https://brandonrc.github.io/dgx-spark-blog/safari-pinned-tab.svg">
 <meta name="theme-color" content="#2e2e33">
 <meta name="msapplication-TileColor" content="#2e2e33">
-<link rel="alternate" type="application/rss+xml" href="https://brandonrc.github.io/dgx-spark-blog/posts/index.xml" title="rss">
-<link rel="alternate" hreflang="en" href="https://brandonrc.github.io/dgx-spark-blog/posts/">
+<link rel="alternate" type="application/rss+xml" href="https://brandonrc.github.io/dgx-spark-blog/tags/tensorrt-llm/index.xml" title="rss">
+<link rel="alternate" hreflang="en" href="https://brandonrc.github.io/dgx-spark-blog/tags/tensorrt-llm/">
 <noscript>
     <style>
         #theme-toggle,
@@ -71,31 +71,16 @@
         document.querySelector("html").dataset.theme = 'light';
     }
 
-</script><meta property="og:url" content="https://brandonrc.github.io/dgx-spark-blog/posts/">
+</script><meta property="og:url" content="https://brandonrc.github.io/dgx-spark-blog/tags/tensorrt-llm/">
   <meta property="og:site_name" content="DGX Spark Deep Dive">
-  <meta property="og:title" content="Posts">
+  <meta property="og:title" content="Tensorrt-Llm">
   <meta property="og:description" content="A technical journey debugging container performance on NVIDIA DGX Spark with Grace Hopper">
   <meta property="og:locale" content="en-us">
   <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Posts">
+<meta name="twitter:title" content="Tensorrt-Llm">
 <meta name="twitter:description" content="A technical journey debugging container performance on NVIDIA DGX Spark with Grace Hopper">
 
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position":  1 ,
-      "name": "Posts",
-      "item": "https://brandonrc.github.io/dgx-spark-blog/posts/"
-    }
-  ]
-}
-</script>
 </head>
 <body class="list" id="top">
     <header class="header">
@@ -128,7 +113,7 @@
         <ul id="menu">
             <li>
                 <a href="https://brandonrc.github.io/dgx-spark-blog/posts/" title="Blog">
-                    <span class="active">Blog</span>
+                    <span>Blog</span>
                 </a>
             </li>
             <li>
@@ -151,13 +136,13 @@
     </nav>
 </header>
 <main class="main"> 
-<header class="page-header"><div class="breadcrumbs"><a href="https://brandonrc.github.io/dgx-spark-blog/">Home</a></div>
+<header class="page-header"><div class="breadcrumbs"><a href="https://brandonrc.github.io/dgx-spark-blog/">Home</a>&nbsp;»&nbsp;<a href="https://brandonrc.github.io/dgx-spark-blog/tags/">Tags</a></div>
   <h1>
-    Posts
+    Tensorrt-Llm
   </h1>
 </header>
 
-<article class="post-entry"> 
+<article class="post-entry tag-entry"> 
   <header class="entry-header">
     <h2 class="entry-hint-parent">KV Cache Deep Dive: The 2x Reduction Mystery
     </h2>
@@ -170,86 +155,6 @@ Why do containers consistently allocate ~2x less KV cache? (The main mystery) Wh
   </div>
   <footer class="entry-footer"><span title='2025-11-08 15:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>18 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
   <a class="entry-link" aria-label="post link to KV Cache Deep Dive: The 2x Reduction Mystery" href="https://brandonrc.github.io/dgx-spark-blog/posts/06-kv-cache-deep-dive/"></a>
-</article>
-
-<article class="post-entry"> 
-  <header class="entry-header">
-    <h2 class="entry-hint-parent">What I Learned (And What&#39;s Next)
-    </h2>
-  </header>
-  <div class="entry-content">
-    <p>The Journey So Far Let’s recap this wild ride:
-The Problem: YouTube reviewers blamed NVIDIA hardware for being slow The Investigation: I found 20-30GB memory overhead in Docker containers The Environment Setup: MPI and chroot configuration nightmare The Revelation: Docker’s cgroups double-count unified memory The Data: 60 runs confirmed the pattern consistently Now, what do I actually do with this knowledge?
-Key Finding: Don’t Blame the Hardware The most important lesson from this entire investigation:
-...</p>
-  </div>
-  <footer class="entry-footer"><span title='2025-11-08 14:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>5 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
-  <a class="entry-link" aria-label="post link to What I Learned (And What&#39;s Next)" href="https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/"></a>
-</article>
-
-<article class="post-entry"> 
-  <header class="entry-header">
-    <h2 class="entry-hint-parent">The Data: 60 Runs Don&#39;t Lie
-    </h2>
-  </header>
-  <div class="entry-content">
-    <p>The Comprehensive Test Plan Anecdotes are interesting. Single data points are suggestive. But 60 benchmark runs across multiple models? That’s science.
-Here’s what I did:
-Test Matrix 3 Models: DeepSeek-R1-Distill-Qwen-7B (7 billion parameters) Qwen2.5-72B-Instruct (72 billion parameters) GPT-OSS-120B (120 billion parameters, MXFP4 quantized) 2 Environments: Native (chroot) vs Container (Docker) 10 Iterations per model per environment Total: 60 benchmark runs Methodology Framework: TensorRT-LLM (trtllm-bench CLI) Workload: 50 requests, 128 output tokens per request Cooldown: 5 minutes &#43; GPU temp check (&lt; 45°C) between runs Duration: ~14 hours total Metrics: Peak memory, KV cache, throughput, latency, temperature DeepSeek-7B Results My smallest model, but the most shocking results:
-...</p>
-  </div>
-  <footer class="entry-footer"><span title='2025-11-08 13:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
-  <a class="entry-link" aria-label="post link to The Data: 60 Runs Don&#39;t Lie" href="https://brandonrc.github.io/dgx-spark-blog/posts/04-the-data/"></a>
-</article>
-
-<article class="post-entry"> 
-  <header class="entry-header">
-    <h2 class="entry-hint-parent">The Unified Memory Revelation: Why Docker Double-Counts
-    </h2>
-  </header>
-  <div class="entry-content">
-    <p>The Question That Started It All After getting both Docker and native environments working, I could finally run proper benchmarks. But I kept asking myself:
-“Where is the 26GB going?”
-It wasn’t CPU overhead - containers don’t add 26GB of process memory.
-It wasn’t the Docker daemon - that’s tiny.
-It wasn’t duplicate libraries - bind mounts prevent that.
-So… where?
-Traditional GPU Systems (The Old Way) Let’s start with how most GPU systems work. Take an NVIDIA H100 or A100:
-...</p>
-  </div>
-  <footer class="entry-footer"><span title='2025-11-08 12:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>8 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
-  <a class="entry-link" aria-label="post link to The Unified Memory Revelation: Why Docker Double-Counts" href="https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/"></a>
-</article>
-
-<article class="post-entry"> 
-  <header class="entry-header">
-    <h2 class="entry-hint-parent">Down the Rabbit Hole: The MPI and Chroot Nightmare
-    </h2>
-  </header>
-  <div class="entry-content">
-    <p>The Simple Plan (That Wasn’t Simple) After seeing the mysterious 26GB memory overhead in Docker, my plan was straightforward:
-Extract the container’s filesystem Run the same Python scripts natively Compare the results Done! Ha. Hahahaha. No.
-Attempt 1: Just Run It My first thought: “Let’s just run the Docker scripts on my system. How hard can it be?”
-1 2 python /home/khan/benchmark-spark/benchmarks/trtllm_benchmark.py \ --model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B What I got: Runtime nightmare.
-...</p>
-  </div>
-  <footer class="entry-footer"><span title='2025-11-08 11:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>6 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
-  <a class="entry-link" aria-label="post link to Down the Rabbit Hole: The MPI and Chroot Nightmare" href="https://brandonrc.github.io/dgx-spark-blog/posts/02-mpi-chroot-nightmare/"></a>
-</article>
-
-<article class="post-entry"> 
-  <header class="entry-header">
-    <h2 class="entry-hint-parent">The Mystery: Don&#39;t Just Blame the Hardware
-    </h2>
-  </header>
-  <div class="entry-content">
-    <p>The YouTube Problem If you search for “DGX Spark performance” on YouTube, you’ll find plenty of videos with clickbait titles like “NVIDIA’s $X Machine is a DISAPPOINTMENT” or “Grace Hopper: Overhyped and Underdelivering.”
-And that really bothers me.
-Not because I’m an NVIDIA fanboy (I’m not), but because none of these reviewers provided a technical explanation of why performance wasn’t meeting expectations. They just pointed at benchmark numbers, said “slow,” and moved on. No investigation into kernel settings, driver versions, container configurations, or software stack optimization. Just… blame the hardware.
-...</p>
-  </div>
-  <footer class="entry-footer"><span title='2025-11-08 10:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span></footer>
-  <a class="entry-link" aria-label="post link to The Mystery: Don&#39;t Just Blame the Hardware" href="https://brandonrc.github.io/dgx-spark-blog/posts/01-the-mystery/"></a>
 </article>
     </main>
     

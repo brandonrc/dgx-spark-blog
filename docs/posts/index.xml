@@ -6,8 +6,15 @@
     <description>Recent content in Posts on DGX Spark Deep Dive</description>
     <generator>Hugo -- 0.146.1</generator>
     <language>en-us</language>
-    <lastBuildDate>Sat, 08 Nov 2025 14:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sat, 08 Nov 2025 15:00:00 +0000</lastBuildDate>
     <atom:link href="https://brandonrc.github.io/dgx-spark-blog/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>KV Cache Deep Dive: The 2x Reduction Mystery</title>
+      <link>https://brandonrc.github.io/dgx-spark-blog/posts/06-kv-cache-deep-dive/</link>
+      <pubDate>Sat, 08 Nov 2025 15:00:00 +0000</pubDate>
+      <guid>https://brandonrc.github.io/dgx-spark-blog/posts/06-kv-cache-deep-dive/</guid>
+      <description>Why do Docker containers allocate roughly half the KV cache of native execution? And why do all models converge to ~44 GiB in native mode? Let&amp;#39;s dig deep into the memory allocation mechanics.</description>
+    </item>
     <item>
       <title>What I Learned (And What&#39;s Next)</title>
       <link>https://brandonrc.github.io/dgx-spark-blog/posts/05-what-we-learned/</link>

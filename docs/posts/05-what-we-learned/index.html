@@ -118,8 +118,8 @@
   "keywords": [
     "dgx-spark", "conclusions", "recommendations", "phase2"
   ],
-  "articleBody": "The Journey So Far Let’s recap this wild ride:\nThe Problem: YouTube reviewers blamed NVIDIA hardware for being slow The Investigation: I found 20-30GB memory overhead in Docker containers The Environment Setup: MPI and chroot configuration nightmare The Revelation: Docker’s cgroups double-count unified memory The Data: 60 runs confirmed the pattern consistently Now, what do I actually do with this knowledge?\nKey Finding: Don’t Blame the Hardware The most important lesson from this entire investigation:\nHardware isn’t the problem when you haven’t understood the software stack.\nThose YouTube reviews that said “DGX Spark is slow” or “Grace Hopper is disappointing”? They were wrong. Not because the numbers were wrong, but because they stopped at the numbers.\nThe hardware is fine. The software assumptions are outdated.\nDocker’s cgroups were designed in an era of discrete GPUs where:\nCPU RAM and GPU VRAM are separate Memory spaces don’t overlap No double-counting is possible Grace Hopper introduced unified memory:\nOne coherent memory pool Both processors access the same RAM Elegant… but Docker doesn’t understand it yet The lesson: Dig deeper. Understand the full stack. Don’t just blame the hardware.\nPractical Recommendations Based on my findings, here’s what I recommend:\nFor Large Models on Grace Hopper (\u003e 10B params): ✅ Use Native/Chroot Execution\nWhy:\n20-30 GB memory savings 1.7-2.7x more KV cache No performance penalty Better resource utilization Trade-off: Less isolation, more setup complexity\nFor Small Models (\u003c 10B params): 🤔 Docker is Acceptable\nIf 30GB overhead is acceptable for your use case:\nEasier deployment and management Better isolation for multi-tenancy Standard container tooling Simpler CI/CD integration For Discrete GPU Systems (H100, A100): ⚠️ This Finding is Grace Hopper Specific\nTraditional discrete GPU systems should NOT exhibit this pattern because:\nGPU VRAM is outside Docker’s cgroups No double-counting possible Standard container best practices apply The KV Cache Deep Dive (Phase 2) Here’s what really caught my attention: The KV cache scaling.\nLook at these numbers again:\nModel Size Native KV Cache DeepSeek 7B 44.31 GiB Qwen 72B 44.71 GiB GPT-OSS 120B 43.19 GiB Wait… the 72B model has MORE KV cache than the 7B model? And almost as much as the 120B model?\nThis suggests:\nQwen-72B has superior memory optimization Model architecture matters more than parameter count There’s room to optimize other models similarly Phase 2 Goal: Understand KV cache scaling and memory efficiency across different model architectures.\nPhase 2: The Factory Reset Experiment I’m planning a comprehensive Phase 2 investigation:\nThe Plan Factory reset DGX Spark - Start completely fresh Install bare metal software - Match container versions exactly Create 1:1 configurations - Container vs native, identical software Run extended benchmarks - More models, longer contexts, varied batch sizes Investigate KV cache scaling - Why does Qwen-72B use memory so efficiently? Goals Validate my findings with even cleaner test setup Eliminate any remaining configuration variables Deep dive into KV cache allocation strategies Understand memory efficiency across model families Test on other hardware (discrete GPU comparison) Open Questions Can I optimize Docker for unified memory? (cgroup v2, special configs) Do other unified memory systems (AMD MI300) show the same pattern? How does KV cache scale with context length (8k, 32k, 128k tokens)? What model architectures are most memory-efficient? Share Your Findings If you’re running Grace Hopper systems (or other unified memory architectures), I’d love to hear from you:\nAre you seeing similar patterns? Have you found workarounds? Do you have additional data to share? GitHub Repo: benchmark-spark\nOpen an issue or submit a PR with your findings!\nResources All the code, data, and analysis are open source:\n📊 Interactive Results: brandonrc.github.io/benchmark-spark 📄 Full Analysis: ANALYSIS.md 🔧 Benchmark Scripts: scripts/ 📦 Raw Data: results/comprehensive/ Final Thoughts This investigation reinforced something fundamental:\nModern AI infrastructure is a stack:\nHardware (Grace Hopper) Kernel (Linux cgroups) Drivers (NVIDIA, CUDA) Runtime (Docker, containerd) Software (TensorRT-LLM, PyTorch) Applications (Your LLM workload) A problem at any layer can look like a problem at any other layer.\nWhen something seems slow or inefficient, resist the urge to blame the most visible component (usually the hardware or the framework). Instead:\nMeasure everything - Get real data Isolate variables - Test different configurations Understand the stack - Know what each layer does Share findings - Help the community The YouTubers who blamed NVIDIA weren’t doing engineering. They were doing performance theater.\nI did engineering. And I found the real answer.\nWhat’s Your Experience? Have you encountered similar issues? Different findings? Better solutions?\nComment on GitHub Discussions Share your data Help me build Phase 2 Together, you and I can make GPU computing better for everyone - by actually understanding it instead of just pointing fingers.\nPrevious: ← Part 4: The Data - 60 Runs Don’t Lie\nGitHub Repo: benchmark-spark\nPhase 2 Tracking: GitHub Issues\nThanks for following along! 🚀\n",
-  "wordCount" : "795",
+  "articleBody": "The Journey So Far Let’s recap this wild ride:\nThe Problem: YouTube reviewers blamed NVIDIA hardware for being slow The Investigation: I found 20-30GB memory overhead in Docker containers The Environment Setup: MPI and chroot configuration nightmare The Revelation: Docker’s cgroups double-count unified memory The Data: 60 runs confirmed the pattern consistently Now, what do I actually do with this knowledge?\nKey Finding: Don’t Blame the Hardware The most important lesson from this entire investigation:\nHardware isn’t the problem when you haven’t understood the software stack.\nThose YouTube reviews that said “DGX Spark is slow” or “Grace Hopper is disappointing”? They were wrong. Not because the numbers were wrong, but because they stopped at the numbers.\nThe hardware is fine. The software assumptions are outdated.\nDocker’s cgroups were designed in an era of discrete GPUs where:\nCPU RAM and GPU VRAM are separate Memory spaces don’t overlap No double-counting is possible Grace Hopper introduced unified memory:\nOne coherent memory pool Both processors access the same RAM Elegant… but Docker doesn’t understand it yet The lesson: Dig deeper. Understand the full stack. Don’t just blame the hardware.\nPractical Recommendations Based on my findings, here’s what I recommend:\nFor Large Models on Grace Hopper (\u003e 10B params): ✅ Use Native/Chroot Execution\nWhy:\n20-30 GB memory savings 1.7-2.7x more KV cache No performance penalty Better resource utilization Trade-off: Less isolation, more setup complexity\nFor Small Models (\u003c 10B params): 🤔 Docker is Acceptable\nIf 30GB overhead is acceptable for your use case:\nEasier deployment and management Better isolation for multi-tenancy Standard container tooling Simpler CI/CD integration For Discrete GPU Systems (H100, A100): ⚠️ This Finding is Grace Hopper Specific\nTraditional discrete GPU systems should NOT exhibit this pattern because:\nGPU VRAM is outside Docker’s cgroups No double-counting possible Standard container best practices apply The KV Cache Mystery (Phase 2) Here’s what really caught my attention: The relationship between container overhead and KV cache.\nLook at the pattern across all models:\nModel Native Total Container Total Overhead Native KV Container KV KV Reduction DeepSeek-7B 70.47 GiB 101.30 GiB +30.83 GiB 44.31 GiB 16.57 GiB -27.74 GiB Qwen-72B 70.03 GiB 90.02 GiB +19.99 GiB 44.71 GiB 26.72 GiB -17.99 GiB GPT-OSS-120B 71.72 GiB 93.43 GiB +21.71 GiB 43.19 GiB 23.65 GiB -19.54 GiB The Real Question: Where is that 20-30 GB container overhead going? And why does it result in lower KV cache allocation?\nHypothesis: Docker’s cgroups are double-counting unified memory, making TensorRT-LLM think it has less available memory. The framework then conservatively allocates less KV cache to avoid OOM errors.\nNotice:\nAll three models use ~44 GiB KV cache in native mode (very similar!) Container overhead directly correlates with KV cache reduction The overhead isn’t going to computation - it’s just… disappearing Phase 2 Goal: Figure out exactly where the container overhead is going and why it prevents proper KV cache allocation.\nPhase 2: Deep Dive into Container Memory Accounting I’m planning a comprehensive Phase 2 investigation to understand exactly where that overhead is going:\nThe Plan Profile memory allocation in real-time\nUse nvidia-smi dmon during container vs native runs Track CUDA memory allocation patterns Monitor cgroup memory accounting vs actual GPU usage Test Docker memory configurations\nDifferent cgroup versions (v1 vs v2) Various --gpus configurations Test with --privileged mode Try --ipc=host and other isolation tweaks Instrument TensorRT-LLM\nAdd logging to see how much memory it thinks is available Track KV cache allocation decisions Compare memory queries between environments Compare with discrete GPUs\nRun same tests on H100/A100 system Confirm this is Grace Hopper unified memory specific Establish baseline for normal Docker behavior Key Questions to Answer Where is the 20-30 GB going? Is it actually allocated, or just counted differently? Why does TensorRT-LLM allocate less KV cache? What signal is it reading? Can Docker be configured to handle unified memory? Are there flags/configs we’re missing? Is this NVIDIA Container Toolkit specific? Would native containerd or podman behave differently? Expected Outcomes Pinpoint the exact mechanism causing double-counting Determine if there’s a Docker configuration fix Document whether this affects other unified memory systems (AMD MI300X, future Intel solutions) Provide concrete recommendations for Grace Hopper containerization Share Your Findings If you’re running Grace Hopper systems (or other unified memory architectures), I’d love to hear from you:\nAre you seeing similar patterns? Have you found workarounds? Do you have additional data to share? GitHub Repo: benchmark-spark\nOpen an issue or submit a PR with your findings!\nResources All the code, data, and analysis are open source:\n📊 Interactive Results: brandonrc.github.io/benchmark-spark 📄 Full Analysis: ANALYSIS.md 🔧 Benchmark Scripts: scripts/ 📦 Raw Data: results/comprehensive/ Final Thoughts This investigation reinforced something fundamental:\nModern AI infrastructure is a stack:\nHardware (Grace Hopper) Kernel (Linux cgroups) Drivers (NVIDIA, CUDA) Runtime (Docker, containerd) Software (TensorRT-LLM, PyTorch) Applications (Your LLM workload) A problem at any layer can look like a problem at any other layer.\nWhen something seems slow or inefficient, resist the urge to blame the most visible component (usually the hardware or the framework). Instead:\nMeasure everything - Get real data Isolate variables - Test different configurations Understand the stack - Know what each layer does Share findings - Help the community The YouTubers who blamed NVIDIA weren’t doing engineering. They were doing performance theater.\nI did engineering. And I found the real answer.\nWhat’s Your Experience? Have you encountered similar issues? Different findings? Better solutions?\nComment on GitHub Discussions Share your data Help me build Phase 2 Together, you and I can make GPU computing better for everyone - by actually understanding it instead of just pointing fingers.\nPrevious: ← Part 4: The Data - 60 Runs Don’t Lie Next: Part 6: KV Cache Deep Dive - The 2x Reduction Mystery →\nGitHub Repo: benchmark-spark Phase 2 Tracking: GitHub Issues\nThanks for following along! 🚀\n",
+  "wordCount" : "964",
   "inLanguage": "en",
   "datePublished": "2025-11-08T14:00:00Z",
   "dateModified": "2025-11-08T14:00:00Z",
@@ -206,7 +206,7 @@
     <div class="post-description">
       After 60 benchmarks and hours of debugging, here&#39;s what I learned about Grace Hopper, Docker, and the importance of understanding your full stack. Plus: what I&#39;m investigating next.
     </div>
-    <div class="post-meta"><span title='2025-11-08 14:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span>
+    <div class="post-meta"><span title='2025-11-08 14:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>5 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span>
 
 </div>
   </header> <div class="toc">
@@ -231,16 +231,16 @@
                     <a href="#for-discrete-gpu-systems-h100-a100" aria-label="For Discrete GPU Systems (H100, A100):">For Discrete GPU Systems (H100, A100):</a></li></ul>
                 </li>
                 <li>
-                    <a href="#the-kv-cache-deep-dive-phase-2" aria-label="The KV Cache Deep Dive (Phase 2)">The KV Cache Deep Dive (Phase 2)</a></li>
+                    <a href="#the-kv-cache-mystery-phase-2" aria-label="The KV Cache Mystery (Phase 2)">The KV Cache Mystery (Phase 2)</a></li>
                 <li>
-                    <a href="#phase-2-the-factory-reset-experiment" aria-label="Phase 2: The Factory Reset Experiment">Phase 2: The Factory Reset Experiment</a><ul>
+                    <a href="#phase-2-deep-dive-into-container-memory-accounting" aria-label="Phase 2: Deep Dive into Container Memory Accounting">Phase 2: Deep Dive into Container Memory Accounting</a><ul>
                         
                 <li>
                     <a href="#the-plan" aria-label="The Plan">The Plan</a></li>
                 <li>
-                    <a href="#goals" aria-label="Goals">Goals</a></li>
+                    <a href="#key-questions-to-answer" aria-label="Key Questions to Answer">Key Questions to Answer</a></li>
                 <li>
-                    <a href="#open-questions" aria-label="Open Questions">Open Questions</a></li></ul>
+                    <a href="#expected-outcomes" aria-label="Expected Outcomes">Expected Outcomes</a></li></ul>
                 </li>
                 <li>
                     <a href="#share-your-findings" aria-label="Share Your Findings">Share Your Findings</a></li>
@@ -313,67 +313,111 @@
 <li>No double-counting possible</li>
 <li>Standard container best practices apply</li>
 </ul>
-<h2 id="the-kv-cache-deep-dive-phase-2">The KV Cache Deep Dive (Phase 2)<a hidden class="anchor" aria-hidden="true" href="#the-kv-cache-deep-dive-phase-2">#</a></h2>
-<p>Here&rsquo;s what really caught my attention: <strong>The KV cache scaling</strong>.</p>
-<p>Look at these numbers again:</p>
+<h2 id="the-kv-cache-mystery-phase-2">The KV Cache Mystery (Phase 2)<a hidden class="anchor" aria-hidden="true" href="#the-kv-cache-mystery-phase-2">#</a></h2>
+<p>Here&rsquo;s what really caught my attention: <strong>The relationship between container overhead and KV cache</strong>.</p>
+<p>Look at the pattern across all models:</p>
 <table>
   <thead>
       <tr>
           <th>Model</th>
-          <th>Size</th>
-          <th>Native KV Cache</th>
+          <th>Native Total</th>
+          <th>Container Total</th>
+          <th>Overhead</th>
+          <th>Native KV</th>
+          <th>Container KV</th>
+          <th>KV Reduction</th>
       </tr>
   </thead>
   <tbody>
       <tr>
-          <td>DeepSeek</td>
-          <td>7B</td>
+          <td>DeepSeek-7B</td>
+          <td>70.47 GiB</td>
+          <td>101.30 GiB</td>
+          <td><strong>+30.83 GiB</strong></td>
           <td>44.31 GiB</td>
+          <td>16.57 GiB</td>
+          <td><strong>-27.74 GiB</strong></td>
       </tr>
       <tr>
-          <td>Qwen</td>
-          <td>72B</td>
-          <td><strong>44.71 GiB</strong></td>
+          <td>Qwen-72B</td>
+          <td>70.03 GiB</td>
+          <td>90.02 GiB</td>
+          <td><strong>+19.99 GiB</strong></td>
+          <td>44.71 GiB</td>
+          <td>26.72 GiB</td>
+          <td><strong>-17.99 GiB</strong></td>
       </tr>
       <tr>
-          <td>GPT-OSS</td>
-          <td>120B</td>
+          <td>GPT-OSS-120B</td>
+          <td>71.72 GiB</td>
+          <td>93.43 GiB</td>
+          <td><strong>+21.71 GiB</strong></td>
           <td>43.19 GiB</td>
+          <td>23.65 GiB</td>
+          <td><strong>-19.54 GiB</strong></td>
       </tr>
   </tbody>
 </table>
-<p>Wait&hellip; the <strong>72B model has MORE KV cache</strong> than the 7B model? And almost as much as the 120B model?</p>
-<p>This suggests:</p>
+<p><strong>The Real Question</strong>: Where is that 20-30 GB container overhead going? And why does it result in lower KV cache allocation?</p>
+<p><strong>Hypothesis</strong>: Docker&rsquo;s cgroups are double-counting unified memory, making TensorRT-LLM think it has less available memory. The framework then conservatively allocates less KV cache to avoid OOM errors.</p>
+<p>Notice:</p>
 <ul>
-<li>Qwen-72B has superior memory optimization</li>
-<li>Model architecture matters more than parameter count</li>
-<li>There&rsquo;s room to optimize other models similarly</li>
+<li>All three models use <strong>~44 GiB KV cache in native mode</strong> (very similar!)</li>
+<li>Container overhead directly correlates with KV cache reduction</li>
+<li>The overhead isn&rsquo;t going to computation - it&rsquo;s just&hellip; disappearing</li>
 </ul>
-<p><strong>Phase 2 Goal</strong>: Understand KV cache scaling and memory efficiency across different model architectures.</p>
-<h2 id="phase-2-the-factory-reset-experiment">Phase 2: The Factory Reset Experiment<a hidden class="anchor" aria-hidden="true" href="#phase-2-the-factory-reset-experiment">#</a></h2>
-<p>I&rsquo;m planning a comprehensive Phase 2 investigation:</p>
+<p><strong>Phase 2 Goal</strong>: Figure out exactly where the container overhead is going and why it prevents proper KV cache allocation.</p>
+<h2 id="phase-2-deep-dive-into-container-memory-accounting">Phase 2: Deep Dive into Container Memory Accounting<a hidden class="anchor" aria-hidden="true" href="#phase-2-deep-dive-into-container-memory-accounting">#</a></h2>
+<p>I&rsquo;m planning a comprehensive Phase 2 investigation to understand exactly where that overhead is going:</p>
 <h3 id="the-plan">The Plan<a hidden class="anchor" aria-hidden="true" href="#the-plan">#</a></h3>
 <ol>
-<li><strong>Factory reset DGX Spark</strong> - Start completely fresh</li>
-<li><strong>Install bare metal software</strong> - Match container versions exactly</li>
-<li><strong>Create 1:1 configurations</strong> - Container vs native, identical software</li>
-<li><strong>Run extended benchmarks</strong> - More models, longer contexts, varied batch sizes</li>
-<li><strong>Investigate KV cache scaling</strong> - Why does Qwen-72B use memory so efficiently?</li>
-</ol>
-<h3 id="goals">Goals<a hidden class="anchor" aria-hidden="true" href="#goals">#</a></h3>
+<li>
+<p><strong>Profile memory allocation in real-time</strong></p>
 <ul>
-<li>Validate my findings with even cleaner test setup</li>
-<li>Eliminate any remaining configuration variables</li>
-<li>Deep dive into KV cache allocation strategies</li>
-<li>Understand memory efficiency across model families</li>
-<li>Test on other hardware (discrete GPU comparison)</li>
+<li>Use <code>nvidia-smi dmon</code> during container vs native runs</li>
+<li>Track CUDA memory allocation patterns</li>
+<li>Monitor cgroup memory accounting vs actual GPU usage</li>
 </ul>
-<h3 id="open-questions">Open Questions<a hidden class="anchor" aria-hidden="true" href="#open-questions">#</a></h3>
+</li>
+<li>
+<p><strong>Test Docker memory configurations</strong></p>
 <ul>
-<li>Can I optimize Docker for unified memory? (cgroup v2, special configs)</li>
-<li>Do other unified memory systems (AMD MI300) show the same pattern?</li>
-<li>How does KV cache scale with context length (8k, 32k, 128k tokens)?</li>
-<li>What model architectures are most memory-efficient?</li>
+<li>Different cgroup versions (v1 vs v2)</li>
+<li>Various <code>--gpus</code> configurations</li>
+<li>Test with <code>--privileged</code> mode</li>
+<li>Try <code>--ipc=host</code> and other isolation tweaks</li>
+</ul>
+</li>
+<li>
+<p><strong>Instrument TensorRT-LLM</strong></p>
+<ul>
+<li>Add logging to see how much memory it thinks is available</li>
+<li>Track KV cache allocation decisions</li>
+<li>Compare memory queries between environments</li>
+</ul>
+</li>
+<li>
+<p><strong>Compare with discrete GPUs</strong></p>
+<ul>
+<li>Run same tests on H100/A100 system</li>
+<li>Confirm this is Grace Hopper unified memory specific</li>
+<li>Establish baseline for normal Docker behavior</li>
+</ul>
+</li>
+</ol>
+<h3 id="key-questions-to-answer">Key Questions to Answer<a hidden class="anchor" aria-hidden="true" href="#key-questions-to-answer">#</a></h3>
+<ul>
+<li><strong>Where is the 20-30 GB going?</strong> Is it actually allocated, or just counted differently?</li>
+<li><strong>Why does TensorRT-LLM allocate less KV cache?</strong> What signal is it reading?</li>
+<li><strong>Can Docker be configured to handle unified memory?</strong> Are there flags/configs we&rsquo;re missing?</li>
+<li><strong>Is this NVIDIA Container Toolkit specific?</strong> Would native containerd or podman behave differently?</li>
+</ul>
+<h3 id="expected-outcomes">Expected Outcomes<a hidden class="anchor" aria-hidden="true" href="#expected-outcomes">#</a></h3>
+<ul>
+<li>Pinpoint the exact mechanism causing double-counting</li>
+<li>Determine if there&rsquo;s a Docker configuration fix</li>
+<li>Document whether this affects other unified memory systems (AMD MI300X, future Intel solutions)</li>
+<li>Provide concrete recommendations for Grace Hopper containerization</li>
 </ul>
 <h2 id="share-your-findings">Share Your Findings<a hidden class="anchor" aria-hidden="true" href="#share-your-findings">#</a></h2>
 <p>If you&rsquo;re running Grace Hopper systems (or other unified memory architectures), I&rsquo;d love to hear from you:</p>
@@ -423,8 +467,9 @@
 </ul>
 <p>Together, you and I can make GPU computing better for everyone - by actually understanding it instead of just pointing fingers.</p>
 <hr>
-<p><strong>Previous</strong>: <a href="../04-the-data">← Part 4: The Data - 60 Runs Don&rsquo;t Lie</a></p>
-<p><strong>GitHub Repo</strong>: <a href="https://github.com/brandonrc/benchmark-spark">benchmark-spark</a><br>
+<p><strong>Previous</strong>: <a href="../04-the-data">← Part 4: The Data - 60 Runs Don&rsquo;t Lie</a>
+<strong>Next</strong>: <a href="../06-kv-cache-deep-dive">Part 6: KV Cache Deep Dive - The 2x Reduction Mystery →</a></p>
+<p><strong>GitHub Repo</strong>: <a href="https://github.com/brandonrc/benchmark-spark">benchmark-spark</a>
 <strong>Phase 2 Tracking</strong>: <a href="https://github.com/brandonrc/benchmark-spark/issues">GitHub Issues</a></p>
 <hr>
 <p><strong>Thanks for following along!</strong> 🚀</p>
@@ -440,6 +485,11 @@
       <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/phase2/">Phase2</a></li>
     </ul>
 <nav class="paginav">
+  <a class="prev" href="https://brandonrc.github.io/dgx-spark-blog/posts/06-kv-cache-deep-dive/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>KV Cache Deep Dive: The 2x Reduction Mystery</span>
+  </a>
   <a class="next" href="https://brandonrc.github.io/dgx-spark-blog/posts/04-the-data/">
     <span class="title">Next »</span>
     <br>
