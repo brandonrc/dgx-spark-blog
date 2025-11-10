@@ -2,7 +2,7 @@
 title: "The Mystery: Don't Just Blame the Hardware"
 date: 2025-11-08T10:00:00-00:00
 draft: false
-tags: ["dgx-spark", "performance", "debugging", "docker", "grace-hopper"]
+tags: ["dgx-spark", "performance", "debugging", "docker", "grace-blackwell"]
 categories: ["Investigation"]
 author: "Brandon Geraci"
 showToc: true
@@ -12,7 +12,7 @@ description: "YouTube tech reviewers were quick to blame NVIDIA's new DGX Spark 
 
 ## The YouTube Problem
 
-If you search for "DGX Spark performance" on YouTube, you'll find plenty of videos with clickbait titles like "NVIDIA's $X Machine is a DISAPPOINTMENT" or "Grace Hopper: Overhyped and Underdelivering."
+If you search for "DGX Spark performance" on YouTube, you'll find plenty of videos with clickbait titles like "NVIDIA's $X Machine is a DISAPPOINTMENT" or "Grace Blackwell: Overhyped and Underdelivering."
 
 And that really bothers me.
 
@@ -25,11 +25,11 @@ That's not how engineering works.
 I got my hands on an NVIDIA DGX Spark - a genuinely interesting piece of hardware:
 
 - **CPU**: ARM Cortex (X925 + A725), 20 cores total
-- **GPU**: NVIDIA GB10 (Blackwell architecture, Grace Hopper design)
+- **GPU**: NVIDIA GB10 (Blackwell architecture, Grace Blackwell design)
 - **Memory**: 128GB **unified** (CPU and GPU share the same RAM pool)
 - **Architecture**: aarch64 (ARM64)
 
-The unified memory part is key. Unlike traditional systems where you have separate CPU RAM and GPU VRAM that copy data back and forth over PCIe, Grace Hopper has one coherent memory space. Both processors can access the same 128GB directly.
+The unified memory part is key. Unlike traditional systems where you have separate CPU RAM and GPU VRAM that copy data back and forth over PCIe, Grace Blackwell has one coherent memory space. Both processors can access the same 128GB directly.
 
 Pretty elegant, right?
 
@@ -95,11 +95,11 @@ You might think "who cares about 26GB if performance is the same?" But:
 
 ## The Investigation Begins
 
-Rather than accept this as "Docker is bloated" or "Grace Hopper is broken," I decided to dig in:
+Rather than accept this as "Docker is bloated" or "Grace Blackwell is broken," I decided to dig in:
 
 1. Run comprehensive benchmarks (60 runs across 3 different model sizes)
 2. Test multiple LLMs: 7B, 72B, and 120B parameter models
-3. Understand what Grace Hopper's unified memory architecture really means
+3. Understand what Grace Blackwell's unified memory architecture really means
 4. Figure out exactly **where** that 26GB is going
 
 The journey involved:

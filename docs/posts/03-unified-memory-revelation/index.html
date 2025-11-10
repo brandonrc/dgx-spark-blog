@@ -6,8 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="robots" content="index, follow">
 <title>The Unified Memory Revelation: Why Docker Double-Counts | DGX Spark Deep Dive</title>
-<meta name="keywords" content="dgx-spark, grace-hopper, unified-memory, cgroups, docker">
-<meta name="description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
+<meta name="keywords" content="dgx-spark, grace-blackwell, unified-memory, cgroups, docker">
+<meta name="description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Blackwell has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
 <meta name="author" content="Brandon Geraci">
 <link rel="canonical" href="https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/">
 <link crossorigin="anonymous" href="/dgx-spark-blog/assets/css/stylesheet.343cc480b9ffc8f04ccbe5e968ad674880cab773ec19905e93033065c1e7a804.css" integrity="sha256-NDzEgLn/yPBMy&#43;XpaK1nSIDKt3PsGZBekwMwZcHnqAQ=" rel="preload stylesheet" as="style">
@@ -73,20 +73,20 @@
 </script><meta property="og:url" content="https://brandonrc.github.io/dgx-spark-blog/posts/03-unified-memory-revelation/">
   <meta property="og:site_name" content="DGX Spark Deep Dive">
   <meta property="og:title" content="The Unified Memory Revelation: Why Docker Double-Counts">
-  <meta property="og:description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
+  <meta property="og:description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Blackwell has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
   <meta property="og:locale" content="en-us">
   <meta property="og:type" content="article">
     <meta property="article:section" content="posts">
     <meta property="article:published_time" content="2025-11-08T12:00:00+00:00">
     <meta property="article:modified_time" content="2025-11-08T12:00:00+00:00">
     <meta property="article:tag" content="Dgx-Spark">
-    <meta property="article:tag" content="Grace-Hopper">
+    <meta property="article:tag" content="Grace-Blackwell">
     <meta property="article:tag" content="Unified-Memory">
     <meta property="article:tag" content="Cgroups">
     <meta property="article:tag" content="Docker">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="The Unified Memory Revelation: Why Docker Double-Counts">
-<meta name="twitter:description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
+<meta name="twitter:description" content="The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Blackwell has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.">
 
 
 <script type="application/ld+json">
@@ -115,12 +115,12 @@
   "@type": "BlogPosting",
   "headline": "The Unified Memory Revelation: Why Docker Double-Counts",
   "name": "The Unified Memory Revelation: Why Docker Double-Counts",
-  "description": "The 'aha!' moment: Docker's cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.",
+  "description": "The 'aha!' moment: Docker's cgroups were designed for discrete GPUs, but Grace Blackwell has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.",
   "keywords": [
-    "dgx-spark", "grace-hopper", "unified-memory", "cgroups", "docker"
+    "dgx-spark", "grace-blackwell", "unified-memory", "cgroups", "docker"
   ],
-  "articleBody": "The Question That Started It All After getting both Docker and native environments working, I could finally run proper benchmarks. But I kept asking myself:\n“Where is the 26GB going?”\nIt wasn’t CPU overhead - containers don’t add 26GB of process memory.\nIt wasn’t the Docker daemon - that’s tiny.\nIt wasn’t duplicate libraries - bind mounts prevent that.\nSo… where?\nTraditional GPU Systems (The Old Way) Let’s start with how most GPU systems work. Take an NVIDIA H100 or A100:\n┌ │ │ │ │ └ ─ ─ ─ ─ ─ D 6 ─ ─ C D 4 ─ ─ P R - ─ ─ U 5 ─ ─ R 1 ─ ─ ( A 2 ─ ─ H M ─ ─ o G ─ ─ s B ─ ─ t ─ ─ ) ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ │ ┘ ◄ ─ P ─ C ─ I ─ e ► ┌ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ G H 4 ─ ─ P B 0 ─ ─ U M - ─ ─ 8 ─ ─ ( ( 0 ─ ─ D V ─ ─ e R G ─ ─ v A B ─ ─ i M ─ ─ c ) ─ ─ e ─ ─ ) ─ ─ ─ ┐ │ │ │ │ ┘ Key points:\nCPU has its own RAM (DDR) GPU has its own VRAM (HBM) Data moves between them over PCIe bus They’re separate memory spaces When Docker runs on these systems:\nDocker’s cgroups manage CPU RAM only GPU VRAM is outside Docker’s control nvidia-docker just passes through GPU access No double-counting because they’re separate Grace Hopper: The Game Changer Now look at Grace Hopper (our DGX Spark):\n┌ │ │ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ ┌ │ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ G ─ U ┌ │ └ C ─ ─ ─ r ─ N ─ ─ o ─ ─ ─ a ─ I ─ A ─ h ─ ─ ─ c ─ F ─ R ─ e ─ ─ ─ e ─ I ─ M ─ r ─ ─ ─ ─ E ─ ─ e ─ ─ ─ H ─ D ─ C ─ n ─ ─ ─ o ─ ─ P ─ t ─ ─ ─ p ─ M ─ U ─ , ─ ─ ─ p ─ E ─ ─ ─ ─ ─ e ─ M ┐ │ ┘ C ─ ─ ─ r ─ O ◄ a ─ ─ ─ ─ R ─ c ─ ─ ─ S ─ Y ─ h ─ ─ ─ y ─ ► e ─ ─ ─ s ─ ( ┌ │ └ - ─ ─ ─ t ─ 1 ─ ─ C ─ ─ ─ e ─ 2 ─ G ─ o ─ ─ ─ m ─ 8 ─ B ─ h ─ ─ ─ ─ ─ 1 ─ e ─ ─ ─ ─ G ─ 0 ─ r ─ ─ ─ ─ B ─ ─ e ─ ─ ─ ─ ) ─ G ─ n ─ ─ ─ ─ ─ P ─ t ─ ─ ─ ─ ─ U ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ ┘ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ │ │ ┘ ─ ─ ─ ┐ │ │ │ │ │ │ │ │ │ ┘ Revolutionary differences:\nOne memory pool for both CPU and GPU No PCIe transfers - both access the same RAM Coherent at the hardware level The CPU “sees” GPU allocations and vice versa This is elegant! No more copying between CPU and GPU. It’s all one big shared memory space.\nThe Docker cgroup Problem Here’s where things go sideways.\nDocker uses Linux cgroups (control groups) to isolate and track container resources:\n1 2 3 # Docker creates a memory cgroup for each container /sys/fs/cgroup/docker//memory.max /sys/fs/cgroup/docker//memory.current On a traditional GPU system, cgroups see:\nCPU RAM: Managed by cgroup ✓ GPU VRAM: Outside cgroup (invisible) ✓ On Grace Hopper unified memory, cgroups see:\nThe entire 128GB pool as “system RAM” ✗ The Double-Counting Here’s what happens when you run a model in a Docker container on Grace Hopper:\nModel loads into unified memory (let’s say 70GB) CUDA driver records this as GPU allocation Docker’s cgroup sees 70GB of “container RAM” used TensorRT-LLM tries to allocate KV cache Docker thinks: “Container is using 70GB already, only X GB left” Reality: That 70GB is THE SAME MEMORY, just counted twice! Result: Docker reserves extra headroom because it thinks GPU memory is separate “container RAM”, even though it’s not.\nThe Evidence Let’s look at what we saw:\nNative (Chroot) T M L K o o e V t d a a e v c l l e a s c u p : h n e e i a f k a i l e u l d s o a c m g a e e t m : e o d r : y : 1 7 4 3 1 8 1 7 9 . . . . 3 3 2 6 1 3 6 4 G G G G B B B B ( 9 0 % o f a v a i l a b l e ) Container (Docker) T M L K o o e V t d a a e v c l l e a s c u p : h n e e i a f k a i l e u l d s o a c m g a e e t m : e o d r : y : 1 1 1 1 1 0 4 3 9 4 . . . . 7 3 6 9 2 1 4 2 G G G G B B B B ( 9 ← 0 % W h o a f t ? a ! v a i l a b l e ) Docker’s cgroup sees 104.92GB used, but the actual model only needs 78GB. The difference (26.6GB) is phantom overhead from Docker’s memory accounting trying to “reserve” space that’s already in use.\nWhy Isn’t This a Problem on Discrete GPUs? On H100/A100 systems, cgroups can’t even see GPU VRAM. It’s on a separate PCIe device. So there’s no double-counting:\nD - - - - U - - - - i n s c C T N i c C D C c g U o o f g U o r r r D t i r D c e e o A a e o A k a t u l v d u e t e p t : e p t r e r r M r ' s G t a 6 l e t a s P r c 4 a m r c U a k p o a k a v : c s + r c s c e k : ✓ y k : c r s 8 s o h : G 0 ( : P u e P G a n a C U = r \" r t d P a S t i U V 1 c y n ✗ R 4 e s o g R A 4 t f : A M G H e M B o m t C s p h o o e p R a n n p e A t f l a r M u y r ) \" s s a : a e ( t ( m d e e 1 e ! . l 2 g y 8 1 . G 2 , ( B 8 e ) G 6 . B 4 g G . B , ) 8 0 G B ) The KV Cache Impact This double-counting has a massive effect on KV cache:\nA - - - v a N C D i a o i l t n f a i t f b v a e l e i r e : n e e n f r c o : e r : 3 1 K 7 3 2 V . . . 2 3 8 c 6 1 x a c G G M h B B O e R : E i n n a t i v e m o d e More KV cache means:\nLonger context windows Higher batch sizes More concurrent requests Better overall throughput scaling That 26GB overhead isn’t just wasted RAM - it’s stolen capacity for serving workloads.\nWhy Performance Is Still The Same You might wonder: “If Docker has less KV cache, why is throughput identical?”\nGood question! For our specific benchmark (50 requests, 128 output tokens):\nEven 13GB of KV cache was enough We weren’t hitting the cache limit Throughput was compute-bound, not memory-bound But in production with:\nLonger contexts (8k, 32k, 128k tokens) Higher batch sizes Many concurrent users That reduced KV cache would absolutely become a bottleneck.\nCan Docker Be Fixed? Maybe? Potential solutions:\nUpdate nvidia-container-toolkit for unified memory awareness Use --memory=unlimited to disable cgroup memory limits Special cgroup configuration for Grace Hopper Wait for Docker/kernel patches that understand unified memory But for now, the simplest solution: Use native execution for large models on Grace Hopper.\nThe Takeaway This isn’t Docker being “bad” or Grace Hopper being “broken.” It’s a mismatch between technology generations:\nDocker’s cgroups: Designed for discrete GPU era Grace Hopper: Next-gen unified memory architecture Result: Software assumptions don’t match hardware reality And that’s why you can’t just blame the hardware. The entire stack matters.\nIn the next post, I’ll show you the data: 60 comprehensive benchmark runs across 3 different models, proving this pattern holds consistently.\nPrevious: ← Part 2: MPI and Chroot Nightmare\nNext: Part 4: The Data - 60 Runs Don’t Lie →\nGitHub Repo: benchmark-spark\n",
-  "wordCount" : "1679",
+  "articleBody": "The Question That Started It All After getting both Docker and native environments working, I could finally run proper benchmarks. But I kept asking myself:\n“Where is the 26GB going?”\nIt wasn’t CPU overhead - containers don’t add 26GB of process memory.\nIt wasn’t the Docker daemon - that’s tiny.\nIt wasn’t duplicate libraries - bind mounts prevent that.\nSo… where?\nTraditional GPU Systems (The Old Way) Let’s start with how most GPU systems work. Take an NVIDIA H100 or A100:\n┌ │ │ │ │ └ ─ ─ ─ ─ ─ D 6 ─ ─ C D 4 ─ ─ P R - ─ ─ U 5 ─ ─ R 1 ─ ─ ( A 2 ─ ─ H M ─ ─ o G ─ ─ s B ─ ─ t ─ ─ ) ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ │ ┘ ◄ ─ P ─ C ─ I ─ e ► ┌ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ G H 4 ─ ─ P B 0 ─ ─ U M - ─ ─ 8 ─ ─ ( ( 0 ─ ─ D V ─ ─ e R G ─ ─ v A B ─ ─ i M ─ ─ c ) ─ ─ e ─ ─ ) ─ ─ ─ ┐ │ │ │ │ ┘ Key points:\nCPU has its own RAM (DDR) GPU has its own VRAM (HBM) Data moves between them over PCIe bus They’re separate memory spaces When Docker runs on these systems:\nDocker’s cgroups manage CPU RAM only GPU VRAM is outside Docker’s control nvidia-docker just passes through GPU access No double-counting because they’re separate Grace Blackwell: The Game Changer Now look at Grace Blackwell (our DGX Spark):\n┌ │ │ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ ┌ │ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ G ─ U ┌ │ └ C ─ ─ ─ r ─ N ─ ─ o ─ ─ ─ a ─ I ─ A ─ h ─ ─ ─ c ─ F ─ R ─ e ─ ─ ─ e ─ I ─ M ─ r ─ ─ ─ ─ E ─ ─ e ─ ─ ─ B ─ D ─ C ─ n ─ ─ ─ l ─ ─ P ─ t ─ ─ ─ a ─ M ─ U ─ , ─ ─ ─ c ─ E ─ ─ ─ ─ ─ k ─ M ┐ │ ┘ C ─ ─ ─ w ─ O ◄ a ─ ─ ─ e ─ R ─ c ─ ─ ─ l ─ Y ─ h ─ ─ ─ l ─ ► e ─ ─ ─ ─ ( ┌ │ └ - ─ ─ ─ S ─ 1 ─ ─ C ─ ─ ─ y ─ 2 ─ G ─ o ─ ─ ─ s ─ 8 ─ B ─ h ─ ─ ─ t ─ ─ 1 ─ e ─ ─ ─ e ─ G ─ 0 ─ r ─ ─ ─ m ─ B ─ ─ e ─ ─ ─ ─ ) ─ G ─ n ─ ─ ─ ─ ─ P ─ t ─ ─ ─ ─ ─ U ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ ┘ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ │ │ ┘ ─ ─ ─ ┐ │ │ │ │ │ │ │ │ ┘ │ Revolutionary differences:\nOne memory pool for both CPU and GPU No PCIe transfers - both access the same RAM Coherent at the hardware level The CPU “sees” GPU allocations and vice versa This is elegant! No more copying between CPU and GPU. It’s all one big shared memory space.\nThe Docker cgroup Problem Here’s where things go sideways.\nDocker uses Linux cgroups (control groups) to isolate and track container resources:\n1 2 3 # Docker creates a memory cgroup for each container /sys/fs/cgroup/docker//memory.max /sys/fs/cgroup/docker//memory.current On a traditional GPU system, cgroups see:\nCPU RAM: Managed by cgroup ✓ GPU VRAM: Outside cgroup (invisible) ✓ On Grace Blackwell unified memory, cgroups see:\nThe entire 128GB pool as “system RAM” ✗ The Double-Counting Here’s what happens when you run a model in a Docker container on Grace Blackwell:\nModel loads into unified memory (let’s say 70GB) CUDA driver records this as GPU allocation Docker’s cgroup sees 70GB of “container RAM” used TensorRT-LLM tries to allocate KV cache Docker thinks: “Container is using 70GB already, only X GB left” Reality: That 70GB is THE SAME MEMORY, just counted twice! Result: Docker reserves extra headroom because it thinks GPU memory is separate “container RAM”, even though it’s not.\nThe Evidence Let’s look at what we saw:\nNative (Chroot) T M L K o o e V t d a a e v c l l e a s c u p : h n e e i a f k a i l e u l d s o a c m g a e e t m : e o d r : y : 1 7 4 3 1 8 1 7 9 . . . . 3 3 2 6 1 3 6 4 G G G G B B B B ( 9 0 % o f a v a i l a b l e ) Container (Docker) T M L K o o e V t d a a e v c l l e a s c u p : h n e e i a f k a i l e u l d s o a c m g a e e t m : e o d r : y : 1 1 1 1 1 0 4 3 9 4 . . . . 7 3 6 9 2 1 4 2 G G G G B B B B ( 9 ← 0 % W h o a f t ? a ! v a i l a b l e ) Docker’s cgroup sees 104.92GB used, but the actual model only needs 78GB. The difference (26.6GB) is phantom overhead from Docker’s memory accounting trying to “reserve” space that’s already in use.\nWhy Isn’t This a Problem on Discrete GPUs? On H100/A100 systems, cgroups can’t even see GPU VRAM. It’s on a separate PCIe device. So there’s no double-counting:\nD - - - - U - - - - i n s c C T N i c C D C c g U o o f g U o r r r D t i r D c e e o A a e o A k a t u l v d u e t e p t : e p t r e r r M r ' s G t a 6 l e t a s P r c 4 a m r c U a k p o a k a v : c s + r c s c e k : ✓ y k : c r s 8 s o h : G 0 ( : P u e P G a n a C U = r \" r t d P a S t i U V 1 c y n ✗ R 4 e s o g R A 4 t f : A M G B e M B l m t C s a h o o e c R a n n p k A t f l a w M u y r e \" s s a l a e ( t l ( m d e e ) 1 e ! . l : 2 g y 8 1 . G 2 , ( B 8 e ) G 6 . B 4 g G . B , ) 8 0 G B ) The KV Cache Impact This double-counting has a massive effect on KV cache:\nA - - - v a N C D i a o i l t n f a i t f b v a e l e i r e : n e e n f r c o : e r : 3 1 K 7 3 2 V . . . 2 3 8 c 6 1 x a c G G M h B B O e R : E i n n a t i v e m o d e More KV cache means:\nLonger context windows Higher batch sizes More concurrent requests Better overall throughput scaling That 26GB overhead isn’t just wasted RAM - it’s stolen capacity for serving workloads.\nWhy Performance Is Still The Same You might wonder: “If Docker has less KV cache, why is throughput identical?”\nGood question! For our specific benchmark (50 requests, 128 output tokens):\nEven 13GB of KV cache was enough We weren’t hitting the cache limit Throughput was compute-bound, not memory-bound But in production with:\nLonger contexts (8k, 32k, 128k tokens) Higher batch sizes Many concurrent users That reduced KV cache would absolutely become a bottleneck.\nCan Docker Be Fixed? Maybe? Potential solutions:\nUpdate nvidia-container-toolkit for unified memory awareness Use --memory=unlimited to disable cgroup memory limits Special cgroup configuration for Grace Blackwell Wait for Docker/kernel patches that understand unified memory But for now, the simplest solution: Use native execution for large models on Grace Blackwell.\nThe Takeaway This isn’t Docker being “bad” or Grace Blackwell being “broken.” It’s a mismatch between technology generations:\nDocker’s cgroups: Designed for discrete GPU era Grace Blackwell: Next-gen unified memory architecture Result: Software assumptions don’t match hardware reality And that’s why you can’t just blame the hardware. The entire stack matters.\nIn the next post, I’ll show you the data: 60 comprehensive benchmark runs across 3 different models, proving this pattern holds consistently.\nPrevious: ← Part 2: MPI and Chroot Nightmare\nNext: Part 4: The Data - 60 Runs Don’t Lie →\nGitHub Repo: benchmark-spark\n",
+  "wordCount" : "1685",
   "inLanguage": "en",
   "datePublished": "2025-11-08T12:00:00Z",
   "dateModified": "2025-11-08T12:00:00Z",
@@ -205,7 +205,7 @@
       The Unified Memory Revelation: Why Docker Double-Counts
     </h1>
     <div class="post-description">
-      The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.
+      The &#39;aha!&#39; moment: Docker&#39;s cgroups were designed for discrete GPUs, but Grace Blackwell has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead.
     </div>
     <div class="post-meta"><span title='2025-11-08 12:00:00 +0000 +0000'>November 8, 2025</span>&nbsp;·&nbsp;<span>8 min</span>&nbsp;·&nbsp;<span>Brandon Geraci</span>
 
@@ -222,7 +222,7 @@
                 <li>
                     <a href="#traditional-gpu-systems-the-old-way" aria-label="Traditional GPU Systems (The Old Way)">Traditional GPU Systems (The Old Way)</a></li>
                 <li>
-                    <a href="#grace-hopper-the-game-changer" aria-label="Grace Hopper: The Game Changer">Grace Hopper: The Game Changer</a></li>
+                    <a href="#grace-blackwell-the-game-changer" aria-label="Grace Blackwell: The Game Changer">Grace Blackwell: The Game Changer</a></li>
                 <li>
                     <a href="#the-docker-cgroup-problem" aria-label="The Docker cgroup Problem">The Docker cgroup Problem</a></li>
                 <li>
@@ -439,8 +439,8 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <li>nvidia-docker just passes through GPU access</li>
 <li><strong>No double-counting</strong> because they&rsquo;re separate</li>
 </ul>
-<h2 id="grace-hopper-the-game-changer">Grace Hopper: The Game Changer<a hidden class="anchor" aria-hidden="true" href="#grace-hopper-the-game-changer">#</a></h2>
-<p>Now look at Grace Hopper (our DGX Spark):</p>
+<h2 id="grace-blackwell-the-game-changer">Grace Blackwell: The Game Changer<a hidden class="anchor" aria-hidden="true" href="#grace-blackwell-the-game-changer">#</a></h2>
+<p>Now look at Grace Blackwell (our DGX Spark):</p>
 
 
 
@@ -450,7 +450,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
       xmlns="http://www.w3.org/2000/svg"
       font-family="Menlo,Lucida Console,monospace"
       
-        viewBox="0 0 320 185"
+        viewBox="0 0 344 185"
       >
       <g transform='translate(8,16)'>
 <text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>┌</text>
@@ -547,7 +547,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='96' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='96' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='104' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>H</text>
+<text text-anchor='middle' x='104' y='20' fill='currentColor' style='font-size:1em'>B</text>
 <text text-anchor='middle' x='104' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='104' y='68' fill='currentColor' style='font-size:1em'>D</text>
 <text text-anchor='middle' x='104' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -557,7 +557,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='104' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='104' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='112' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='112' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='112' y='20' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='112' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='112' y='84' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='112' y='100' fill='currentColor' style='font-size:1em'>P</text>
@@ -566,7 +566,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='112' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='112' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='120' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='120' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='120' y='68' fill='currentColor' style='font-size:1em'>M</text>
 <text text-anchor='middle' x='120' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -576,7 +576,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='120' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='120' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='128' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>c</text>
 <text text-anchor='middle' x='128' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='128' y='68' fill='currentColor' style='font-size:1em'>E</text>
 <text text-anchor='middle' x='128' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -584,7 +584,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='128' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='128' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='136' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>k</text>
 <text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='136' y='68' fill='currentColor' style='font-size:1em'>M</text>
 <text text-anchor='middle' x='136' y='84' fill='currentColor' style='font-size:1em'>┐</text>
@@ -594,7 +594,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='136' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='136' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='144' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='144' y='20' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='144' y='20' fill='currentColor' style='font-size:1em'>w</text>
 <text text-anchor='middle' x='144' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='144' y='68' fill='currentColor' style='font-size:1em'>O</text>
 <text text-anchor='middle' x='144' y='100' fill='currentColor' style='font-size:1em'>◄</text>
@@ -602,6 +602,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='144' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='144' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='152' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='152' y='20' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='152' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='152' y='68' fill='currentColor' style='font-size:1em'>R</text>
 <text text-anchor='middle' x='152' y='100' fill='currentColor' style='font-size:1em'>─</text>
@@ -609,7 +610,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='152' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='152' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='160' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='160' y='20' fill='currentColor' style='font-size:1em'>S</text>
+<text text-anchor='middle' x='160' y='20' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='160' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='160' y='68' fill='currentColor' style='font-size:1em'>Y</text>
 <text text-anchor='middle' x='160' y='100' fill='currentColor' style='font-size:1em'>─</text>
@@ -617,14 +618,13 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='160' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='160' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='168' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='168' y='20' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='168' y='20' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='168' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='168' y='100' fill='currentColor' style='font-size:1em'>►</text>
 <text text-anchor='middle' x='168' y='132' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='168' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='168' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='176' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>s</text>
 <text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='176' y='68' fill='currentColor' style='font-size:1em'>(</text>
 <text text-anchor='middle' x='176' y='84' fill='currentColor' style='font-size:1em'>┌</text>
@@ -634,7 +634,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='176' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='176' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='184' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>S</text>
 <text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='184' y='68' fill='currentColor' style='font-size:1em'>1</text>
 <text text-anchor='middle' x='184' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -643,7 +643,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='184' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='184' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='192' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='192' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='192' y='20' fill='currentColor' style='font-size:1em'>y</text>
 <text text-anchor='middle' x='192' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='192' y='68' fill='currentColor' style='font-size:1em'>2</text>
 <text text-anchor='middle' x='192' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -653,7 +653,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='192' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='192' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='200' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>m</text>
+<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>s</text>
 <text text-anchor='middle' x='200' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='200' y='68' fill='currentColor' style='font-size:1em'>8</text>
 <text text-anchor='middle' x='200' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -663,6 +663,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='200' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='200' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='208' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='208' y='20' fill='currentColor' style='font-size:1em'>t</text>
 <text text-anchor='middle' x='208' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='208' y='84' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='208' y='100' fill='currentColor' style='font-size:1em'>1</text>
@@ -671,6 +672,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='208' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='208' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='216' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='216' y='20' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='216' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='216' y='68' fill='currentColor' style='font-size:1em'>G</text>
 <text text-anchor='middle' x='216' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -680,6 +682,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='216' y='148' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='216' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='224' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='224' y='20' fill='currentColor' style='font-size:1em'>m</text>
 <text text-anchor='middle' x='224' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='224' y='68' fill='currentColor' style='font-size:1em'>B</text>
 <text text-anchor='middle' x='224' y='84' fill='currentColor' style='font-size:1em'>─</text>
@@ -744,7 +747,6 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='296' y='4' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='296' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='304' y='4' fill='currentColor' style='font-size:1em'>┐</text>
-<text text-anchor='middle' x='304' y='20' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='304' y='36' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='304' y='52' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='304' y='68' fill='currentColor' style='font-size:1em'>│</text>
@@ -754,6 +756,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='304' y='132' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='304' y='148' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='304' y='164' fill='currentColor' style='font-size:1em'>┘</text>
+<text text-anchor='middle' x='328' y='20' fill='currentColor' style='font-size:1em'>│</text>
 </g>
 
     </svg>
@@ -787,12 +790,12 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <li>CPU RAM: Managed by cgroup ✓</li>
 <li>GPU VRAM: Outside cgroup (invisible) ✓</li>
 </ul>
-<p>On Grace Hopper unified memory, cgroups see:</p>
+<p>On Grace Blackwell unified memory, cgroups see:</p>
 <ul>
 <li>The entire 128GB pool as &ldquo;system RAM&rdquo; ✗</li>
 </ul>
 <h2 id="the-double-counting">The Double-Counting<a hidden class="anchor" aria-hidden="true" href="#the-double-counting">#</a></h2>
-<p>Here&rsquo;s what happens when you run a model in a Docker container on Grace Hopper:</p>
+<p>Here&rsquo;s what happens when you run a model in a Docker container on Grace Blackwell:</p>
 <ol>
 <li><strong>Model loads</strong> into unified memory (let&rsquo;s say 70GB)</li>
 <li><strong>CUDA driver</strong> records this as GPU allocation</li>
@@ -1240,57 +1243,60 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>A</text>
 <text text-anchor='middle' x='176' y='36' fill='currentColor' style='font-size:1em'>M</text>
 <text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>G</text>
-<text text-anchor='middle' x='176' y='100' fill='currentColor' style='font-size:1em'>H</text>
+<text text-anchor='middle' x='176' y='100' fill='currentColor' style='font-size:1em'>B</text>
 <text text-anchor='middle' x='176' y='116' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>M</text>
 <text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>B</text>
-<text text-anchor='middle' x='184' y='100' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='184' y='100' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='184' y='116' fill='currentColor' style='font-size:1em'>m</text>
 <text text-anchor='middle' x='184' y='132' fill='currentColor' style='font-size:1em'>t</text>
 <text text-anchor='middle' x='184' y='148' fill='currentColor' style='font-size:1em'>C</text>
 <text text-anchor='middle' x='192' y='36' fill='currentColor' style='font-size:1em'>s</text>
-<text text-anchor='middle' x='192' y='100' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='192' y='100' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='192' y='132' fill='currentColor' style='font-size:1em'>h</text>
 <text text-anchor='middle' x='192' y='148' fill='currentColor' style='font-size:1em'>o</text>
 <text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>o</text>
 <text text-anchor='middle' x='200' y='36' fill='currentColor' style='font-size:1em'>e</text>
-<text text-anchor='middle' x='200' y='100' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='200' y='100' fill='currentColor' style='font-size:1em'>c</text>
 <text text-anchor='middle' x='200' y='116' fill='currentColor' style='font-size:1em'>R</text>
 <text text-anchor='middle' x='200' y='132' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='200' y='148' fill='currentColor' style='font-size:1em'>n</text>
 <text text-anchor='middle' x='208' y='20' fill='currentColor' style='font-size:1em'>n</text>
 <text text-anchor='middle' x='208' y='36' fill='currentColor' style='font-size:1em'>p</text>
-<text text-anchor='middle' x='208' y='100' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='208' y='100' fill='currentColor' style='font-size:1em'>k</text>
 <text text-anchor='middle' x='208' y='116' fill='currentColor' style='font-size:1em'>A</text>
 <text text-anchor='middle' x='208' y='132' fill='currentColor' style='font-size:1em'>t</text>
 <text text-anchor='middle' x='208' y='148' fill='currentColor' style='font-size:1em'>f</text>
 <text text-anchor='middle' x='216' y='20' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='216' y='36' fill='currentColor' style='font-size:1em'>a</text>
-<text text-anchor='middle' x='216' y='100' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='216' y='100' fill='currentColor' style='font-size:1em'>w</text>
 <text text-anchor='middle' x='216' y='116' fill='currentColor' style='font-size:1em'>M</text>
 <text text-anchor='middle' x='216' y='148' fill='currentColor' style='font-size:1em'>u</text>
 <text text-anchor='middle' x='224' y='20' fill='currentColor' style='font-size:1em'>y</text>
 <text text-anchor='middle' x='224' y='36' fill='currentColor' style='font-size:1em'>r</text>
-<text text-anchor='middle' x='224' y='100' fill='currentColor' style='font-size:1em'>)</text>
+<text text-anchor='middle' x='224' y='100' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='224' y='116' fill='currentColor' style='font-size:1em'>"</text>
 <text text-anchor='middle' x='224' y='132' fill='currentColor' style='font-size:1em'>s</text>
 <text text-anchor='middle' x='224' y='148' fill='currentColor' style='font-size:1em'>s</text>
 <text text-anchor='middle' x='232' y='36' fill='currentColor' style='font-size:1em'>a</text>
-<text text-anchor='middle' x='232' y='100' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='232' y='100' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='232' y='132' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='232' y='148' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='240' y='20' fill='currentColor' style='font-size:1em'>(</text>
 <text text-anchor='middle' x='240' y='36' fill='currentColor' style='font-size:1em'>t</text>
+<text text-anchor='middle' x='240' y='100' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='240' y='116' fill='currentColor' style='font-size:1em'>(</text>
 <text text-anchor='middle' x='240' y='132' fill='currentColor' style='font-size:1em'>m</text>
 <text text-anchor='middle' x='240' y='148' fill='currentColor' style='font-size:1em'>d</text>
 <text text-anchor='middle' x='248' y='20' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='248' y='36' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='248' y='100' fill='currentColor' style='font-size:1em'>)</text>
 <text text-anchor='middle' x='248' y='116' fill='currentColor' style='font-size:1em'>1</text>
 <text text-anchor='middle' x='248' y='132' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='248' y='148' fill='currentColor' style='font-size:1em'>!</text>
 <text text-anchor='middle' x='256' y='20' fill='currentColor' style='font-size:1em'>.</text>
 <text text-anchor='middle' x='256' y='36' fill='currentColor' style='font-size:1em'>l</text>
+<text text-anchor='middle' x='256' y='100' fill='currentColor' style='font-size:1em'>:</text>
 <text text-anchor='middle' x='256' y='116' fill='currentColor' style='font-size:1em'>2</text>
 <text text-anchor='middle' x='264' y='20' fill='currentColor' style='font-size:1em'>g</text>
 <text text-anchor='middle' x='264' y='36' fill='currentColor' style='font-size:1em'>y</text>
@@ -1458,15 +1464,15 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <ol>
 <li><strong>Update nvidia-container-toolkit</strong> for unified memory awareness</li>
 <li><strong>Use <code>--memory=unlimited</code></strong> to disable cgroup memory limits</li>
-<li><strong>Special cgroup configuration</strong> for Grace Hopper</li>
+<li><strong>Special cgroup configuration</strong> for Grace Blackwell</li>
 <li><strong>Wait for Docker/kernel patches</strong> that understand unified memory</li>
 </ol>
-<p>But for now, the simplest solution: <strong>Use native execution for large models on Grace Hopper</strong>.</p>
+<p>But for now, the simplest solution: <strong>Use native execution for large models on Grace Blackwell</strong>.</p>
 <h2 id="the-takeaway">The Takeaway<a hidden class="anchor" aria-hidden="true" href="#the-takeaway">#</a></h2>
-<p>This isn&rsquo;t Docker being &ldquo;bad&rdquo; or Grace Hopper being &ldquo;broken.&rdquo; It&rsquo;s a <strong>mismatch between technology generations</strong>:</p>
+<p>This isn&rsquo;t Docker being &ldquo;bad&rdquo; or Grace Blackwell being &ldquo;broken.&rdquo; It&rsquo;s a <strong>mismatch between technology generations</strong>:</p>
 <ul>
 <li>Docker&rsquo;s cgroups: Designed for discrete GPU era</li>
-<li>Grace Hopper: Next-gen unified memory architecture</li>
+<li>Grace Blackwell: Next-gen unified memory architecture</li>
 <li>Result: Software assumptions don&rsquo;t match hardware reality</li>
 </ul>
 <p>And that&rsquo;s why you can&rsquo;t just blame the hardware. The entire stack matters.</p>
@@ -1482,7 +1488,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
   <footer class="post-footer">
     <ul class="post-tags">
       <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/dgx-spark/">Dgx-Spark</a></li>
-      <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/grace-hopper/">Grace-Hopper</a></li>
+      <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/grace-blackwell/">Grace-Blackwell</a></li>
       <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/unified-memory/">Unified-Memory</a></li>
       <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/cgroups/">Cgroups</a></li>
       <li><a href="https://brandonrc.github.io/dgx-spark-blog/tags/docker/">Docker</a></li>
@@ -1504,7 +1510,7 @@ It wasn&rsquo;t duplicate libraries - bind mounts prevent that.</p>
 <ul class="share-buttons">
     <li>
         <a target="_blank" rel="noopener noreferrer" aria-label="share The Unified Memory Revelation: Why Docker Double-Counts on x"
-            href="https://x.com/intent/tweet/?text=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts&amp;url=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f&amp;hashtags=dgx-spark%2cgrace-hopper%2cunified-memory%2ccgroups%2cdocker">
+            href="https://x.com/intent/tweet/?text=The%20Unified%20Memory%20Revelation%3a%20Why%20Docker%20Double-Counts&amp;url=https%3a%2f%2fbrandonrc.github.io%2fdgx-spark-blog%2fposts%2f03-unified-memory-revelation%2f&amp;hashtags=dgx-spark%2cgrace-blackwell%2cunified-memory%2ccgroups%2cdocker">
             <svg version="1.1" viewBox="0 0 512 512" xml:space="preserve" height="30px" width="30px" fill="currentColor">
                 <path
                     d="M512 62.554 L 512 449.446 C 512 483.97 483.97 512 449.446 512 L 62.554 512 C 28.03 512 0 483.97 0 449.446 L 0 62.554 C 0 28.03 28.029 0 62.554 0 L 449.446 0 C 483.971 0 512 28.03 512 62.554 Z M 269.951 190.75 L 182.567 75.216 L 56 75.216 L 207.216 272.95 L 63.9 436.783 L 125.266 436.783 L 235.9 310.383 L 332.567 436.783 L 456 436.783 L 298.367 228.367 L 432.367 75.216 L 371.033 75.216 Z M 127.633 110 L 164.101 110 L 383.481 400.065 L 349.5 400.065 Z" />

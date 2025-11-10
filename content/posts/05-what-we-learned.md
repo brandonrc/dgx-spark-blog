@@ -7,7 +7,7 @@ categories: ["Investigation"]
 author: "Brandon Geraci"
 showToc: true
 TocOpen: false
-description: "After 60 benchmarks and hours of debugging, here's what I learned about Grace Hopper, Docker, and the importance of understanding your full stack. Plus: what I'm investigating next."
+description: "After 60 benchmarks and hours of debugging, here's what I learned about Grace Blackwell, Docker, and the importance of understanding your full stack. Plus: what I'm investigating next."
 ---
 
 ## The Journey So Far
@@ -28,7 +28,7 @@ The most important lesson from this entire investigation:
 
 **Hardware isn't the problem when you haven't understood the software stack.**
 
-Those YouTube reviews that said "DGX Spark is slow" or "Grace Hopper is disappointing"? They were wrong. Not because the numbers were wrong, but because they **stopped at the numbers**.
+Those YouTube reviews that said "DGX Spark is slow" or "Grace Blackwell is disappointing"? They were wrong. Not because the numbers were wrong, but because they **stopped at the numbers**.
 
 The hardware is fine. The software assumptions are outdated.
 
@@ -37,7 +37,7 @@ Docker's cgroups were designed in an era of discrete GPUs where:
 - Memory spaces don't overlap
 - No double-counting is possible
 
-Grace Hopper introduced unified memory:
+Grace Blackwell introduced unified memory:
 - One coherent memory pool
 - Both processors access the same RAM
 - Elegant... but Docker doesn't understand it yet
@@ -48,7 +48,7 @@ Grace Hopper introduced unified memory:
 
 Based on my findings, here's what I recommend:
 
-### For Large Models on Grace Hopper (> 10B params):
+### For Large Models on Grace Blackwell (> 10B params):
 
 **✅ Use Native/Chroot Execution**
 
@@ -72,7 +72,7 @@ If 30GB overhead is acceptable for your use case:
 
 ### For Discrete GPU Systems (H100, A100):
 
-**⚠️ This Finding is Grace Hopper Specific**
+**⚠️ This Finding is Grace Blackwell Specific**
 
 Traditional discrete GPU systems should NOT exhibit this pattern because:
 - GPU VRAM is outside Docker's cgroups
@@ -126,7 +126,7 @@ I'm planning a comprehensive Phase 2 investigation to understand exactly where t
 
 4. **Compare with discrete GPUs**
    - Run same tests on H100/A100 system
-   - Confirm this is Grace Hopper unified memory specific
+   - Confirm this is Grace Blackwell unified memory specific
    - Establish baseline for normal Docker behavior
 
 ### Key Questions to Answer
@@ -141,11 +141,11 @@ I'm planning a comprehensive Phase 2 investigation to understand exactly where t
 - Pinpoint the exact mechanism causing double-counting
 - Determine if there's a Docker configuration fix
 - Document whether this affects other unified memory systems (AMD MI300X, future Intel solutions)
-- Provide concrete recommendations for Grace Hopper containerization
+- Provide concrete recommendations for Grace Blackwell containerization
 
 ## Share Your Findings
 
-If you're running Grace Hopper systems (or other unified memory architectures), I'd love to hear from you:
+If you're running Grace Blackwell systems (or other unified memory architectures), I'd love to hear from you:
 
 - Are you seeing similar patterns?
 - Have you found workarounds?
@@ -168,7 +168,7 @@ All the code, data, and analysis are open source:
 This investigation reinforced something fundamental:
 
 **Modern AI infrastructure is a stack**:
-- Hardware (Grace Hopper)
+- Hardware (Grace Blackwell)
 - Kernel (Linux cgroups)
 - Drivers (NVIDIA, CUDA)
 - Runtime (Docker, containerd)

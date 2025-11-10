@@ -13,7 +13,7 @@ So I decided to actually investigate what was going on.
 What We Found
 After 60 comprehensive benchmarks across 3 different LLM models, we discovered:
 
-Docker containers use 20-30 GB more memory than native execution on Grace Hopper
+Docker containers use 20-30 GB more memory than native execution on Grace Blackwell
 KV cache is reduced by 40-63% in containers
 Performance is identical - same throughput, no speed penalty
 Root cause: Docker&rsquo;s cgroups double-count unified memory
@@ -87,7 +87,7 @@ This isn&rsquo;t a hardware problem. It&rsquo;s a software stack mismatch.">
   <meta property="og:description" content="Who &amp; Why I’m Brandon Geraci, and I was tired of seeing YouTube tech reviewers blame NVIDIA’s DGX Spark hardware for being “slow” or “disappointing” without providing any technical analysis.
 So I decided to actually investigate what was going on.
 What We Found After 60 comprehensive benchmarks across 3 different LLM models, we discovered:
-Docker containers use 20-30 GB more memory than native execution on Grace Hopper KV cache is reduced by 40-63% in containers Performance is identical - same throughput, no speed penalty Root cause: Docker’s cgroups double-count unified memory This isn’t a hardware problem. It’s a software stack mismatch.">
+Docker containers use 20-30 GB more memory than native execution on Grace Blackwell KV cache is reduced by 40-63% in containers Performance is identical - same throughput, no speed penalty Root cause: Docker’s cgroups double-count unified memory This isn’t a hardware problem. It’s a software stack mismatch.">
   <meta property="og:locale" content="en-us">
   <meta property="og:type" content="article">
     <meta property="article:published_time" content="2025-11-08T00:00:00+00:00">
@@ -100,7 +100,7 @@ So I decided to actually investigate what was going on.
 What We Found
 After 60 comprehensive benchmarks across 3 different LLM models, we discovered:
 
-Docker containers use 20-30 GB more memory than native execution on Grace Hopper
+Docker containers use 20-30 GB more memory than native execution on Grace Blackwell
 KV cache is reduced by 40-63% in containers
 Performance is identical - same throughput, no speed penalty
 Root cause: Docker&rsquo;s cgroups double-count unified memory
@@ -128,11 +128,11 @@ This isn&rsquo;t a hardware problem. It&rsquo;s a software stack mismatch.">
   "@type": "BlogPosting",
   "headline": "About This Investigation",
   "name": "About This Investigation",
-  "description": "Who \u0026amp; Why I\u0026rsquo;m Brandon Geraci, and I was tired of seeing YouTube tech reviewers blame NVIDIA\u0026rsquo;s DGX Spark hardware for being \u0026ldquo;slow\u0026rdquo; or \u0026ldquo;disappointing\u0026rdquo; without providing any technical analysis.\nSo I decided to actually investigate what was going on.\nWhat We Found After 60 comprehensive benchmarks across 3 different LLM models, we discovered:\nDocker containers use 20-30 GB more memory than native execution on Grace Hopper KV cache is reduced by 40-63% in containers Performance is identical - same throughput, no speed penalty Root cause: Docker\u0026rsquo;s cgroups double-count unified memory This isn\u0026rsquo;t a hardware problem. It\u0026rsquo;s a software stack mismatch.\n",
+  "description": "Who \u0026amp; Why I\u0026rsquo;m Brandon Geraci, and I was tired of seeing YouTube tech reviewers blame NVIDIA\u0026rsquo;s DGX Spark hardware for being \u0026ldquo;slow\u0026rdquo; or \u0026ldquo;disappointing\u0026rdquo; without providing any technical analysis.\nSo I decided to actually investigate what was going on.\nWhat We Found After 60 comprehensive benchmarks across 3 different LLM models, we discovered:\nDocker containers use 20-30 GB more memory than native execution on Grace Blackwell KV cache is reduced by 40-63% in containers Performance is identical - same throughput, no speed penalty Root cause: Docker\u0026rsquo;s cgroups double-count unified memory This isn\u0026rsquo;t a hardware problem. It\u0026rsquo;s a software stack mismatch.\n",
   "keywords": [
     
   ],
-  "articleBody": "Who \u0026 Why I’m Brandon Geraci, and I was tired of seeing YouTube tech reviewers blame NVIDIA’s DGX Spark hardware for being “slow” or “disappointing” without providing any technical analysis.\nSo I decided to actually investigate what was going on.\nWhat We Found After 60 comprehensive benchmarks across 3 different LLM models, we discovered:\nDocker containers use 20-30 GB more memory than native execution on Grace Hopper KV cache is reduced by 40-63% in containers Performance is identical - same throughput, no speed penalty Root cause: Docker’s cgroups double-count unified memory This isn’t a hardware problem. It’s a software stack mismatch.\nThe Project GitHub Repository: benchmark-spark\nAll code, data, and analysis are open source. We ran:\n60 total benchmark runs 3 models: DeepSeek-7B, Qwen-72B, GPT-OSS-120B 2 environments: Native (chroot) vs Container (Docker) 10 iterations per configuration ~14 hours of comprehensive testing Phase 2: What’s Next We’re planning a follow-up investigation:\nFactory reset the DGX Spark Create 1:1 bare metal vs container configs Deep dive into KV cache scaling Test on discrete GPU systems for comparison Get Involved If you’re running Grace Hopper or other unified memory systems:\nShare your findings Open issues on GitHub Contribute data or analysis Let’s understand this together - with engineering, not speculation.\nContact: GitHub\nProject: benchmark-spark\nInteractive Results: Results Dashboard\n",
+  "articleBody": "Who \u0026 Why I’m Brandon Geraci, and I was tired of seeing YouTube tech reviewers blame NVIDIA’s DGX Spark hardware for being “slow” or “disappointing” without providing any technical analysis.\nSo I decided to actually investigate what was going on.\nWhat We Found After 60 comprehensive benchmarks across 3 different LLM models, we discovered:\nDocker containers use 20-30 GB more memory than native execution on Grace Blackwell KV cache is reduced by 40-63% in containers Performance is identical - same throughput, no speed penalty Root cause: Docker’s cgroups double-count unified memory This isn’t a hardware problem. It’s a software stack mismatch.\nThe Project GitHub Repository: benchmark-spark\nAll code, data, and analysis are open source. We ran:\n60 total benchmark runs 3 models: DeepSeek-7B, Qwen-72B, GPT-OSS-120B 2 environments: Native (chroot) vs Container (Docker) 10 iterations per configuration ~14 hours of comprehensive testing Phase 2: What’s Next We’re planning a follow-up investigation:\nFactory reset the DGX Spark Create 1:1 bare metal vs container configs Deep dive into KV cache scaling Test on discrete GPU systems for comparison Get Involved If you’re running Grace Blackwell or other unified memory systems:\nShare your findings Open issues on GitHub Contribute data or analysis Let’s understand this together - with engineering, not speculation.\nContact: GitHub\nProject: benchmark-spark\nInteractive Results: Results Dashboard\n",
   "wordCount" : "215",
   "inLanguage": "en",
   "datePublished": "2025-11-08T00:00:00Z",
@@ -227,7 +227,7 @@ This isn&rsquo;t a hardware problem. It&rsquo;s a software stack mismatch.">
 <h2 id="what-we-found">What We Found<a hidden class="anchor" aria-hidden="true" href="#what-we-found">#</a></h2>
 <p>After 60 comprehensive benchmarks across 3 different LLM models, we discovered:</p>
 <ul>
-<li><strong>Docker containers use 20-30 GB more memory</strong> than native execution on Grace Hopper</li>
+<li><strong>Docker containers use 20-30 GB more memory</strong> than native execution on Grace Blackwell</li>
 <li><strong>KV cache is reduced by 40-63%</strong> in containers</li>
 <li><strong>Performance is identical</strong> - same throughput, no speed penalty</li>
 <li><strong>Root cause</strong>: Docker&rsquo;s cgroups double-count unified memory</li>
@@ -252,7 +252,7 @@ This isn&rsquo;t a hardware problem. It&rsquo;s a software stack mismatch.">
 <li>Test on discrete GPU systems for comparison</li>
 </ul>
 <h2 id="get-involved">Get Involved<a hidden class="anchor" aria-hidden="true" href="#get-involved">#</a></h2>
-<p>If you&rsquo;re running Grace Hopper or other unified memory systems:</p>
+<p>If you&rsquo;re running Grace Blackwell or other unified memory systems:</p>
 <ul>
 <li>Share your findings</li>
 <li>Open issues on GitHub</li>

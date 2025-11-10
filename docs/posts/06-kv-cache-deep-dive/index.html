@@ -119,8 +119,8 @@
   "keywords": [
     "dgx-spark", "kv-cache", "memory", "tensorrt-llm", "deep-dive"
   ],
-  "articleBody": "The Pattern That Demands Explanation In Part 4, I showed you 60 benchmark runs that revealed a consistent pattern. But one table in particular kept me up at night:\nModel Native KV Container KV Reduction Factor DeepSeek-7B 44.31 GiB 16.57 GiB 2.7x less GPT-OSS-120B 43.19 GiB 23.65 GiB 1.8x less Qwen2.5-72B 44.71 GiB 26.72 GiB 1.7x less Two questions immediately jump out:\nWhy do containers consistently allocate ~2x less KV cache? (The main mystery) Why do all native runs converge to ~44 GiB? (The secondary puzzle) Let’s answer both.\nQuestion 1: Why ~2x Less KV Cache in Containers? The High-Level Answer From Part 3, you know Docker’s cgroups double-count unified memory. But how does that translate to exactly 40-60% less KV cache?\nThe answer lies in how TensorRT-LLM allocates KV cache memory.\nTensorRT-LLM’s Memory Budget Calculation When TensorRT-LLM starts up, it performs a memory budget calculation:\n1 2 3 4 5 . . . . . Q L A C A u o l a l e a l l l r d o c o y c u c m a l a t o t a t o d e t e t e e a l s K l p r V w a e a e c m c v i e a a a g i c i h f n h l t o i e a s r n b g = l i a e n c \" f t t f ( m o i r r e v e e m u a e m o n t \" a r i i i y f o m n i n e i e s m n d o g a r m n y m e d e m m o t o r e r y m y p ) o r a r y b u f f e r s Step 1 is where Docker breaks everything.\nNative Execution: Clean Memory View In native/chroot execution, TensorRT-LLM queries memory directly via CUDA:\n┌ │ │ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ T ┌ │ │ │ └ T ─ ─ o ─ ─ e ─ ─ t ─ ─ n ─ ─ a ─ ─ s ─ ─ l ─ M W ~ ─ o ─ ─ ─ o e 1 ─ r ─ ─ G ─ d i 5 ─ R ─ ─ r ─ e g ─ T ─ ─ a ─ l h G ─ - ─ ─ c ─ t B ─ L ─ ─ e ─ s ─ L ─ ─ ─ ─ M ─ ─ H ─ ─ ─ ─ o ─ ─ s ─ ─ p ┐ │ │ │ ┘ e ─ ─ p e ─ ─ e s ─ ─ r ┌ │ │ │ └ : ─ ─ ─ ─ ─ ─ U ─ ─ 1 ─ ─ n ─ S R ─ 0 ─ ─ i ─ y e ~ ─ 5 ─ ─ f ─ s s 8 ─ ─ ─ i ─ t e ─ G ─ ─ e ─ e r G ─ B ─ ─ d ─ m v B ─ ─ ─ ─ e ─ a ─ ─ M ─ ─ v ─ ─ e ┐ │ │ │ ┘ a ─ ─ m i ─ ─ o l ─ ─ r ┌ │ │ │ └ a ─ ─ y ─ ─ b ─ ─ : ─ ~ ─ l ─ ─ ─ F 1 ─ e ─ ─ 1 ─ R 0 ─ ─ ─ 2 ─ E 5 ─ ─ ─ 8 ─ E G ─ ─ ─ ─ B ─ ─ ─ G ─ ─ ─ ─ B ┐ │ │ │ ┘ ─ ─ ─ ─ │ │ │ │ │ ─ ┐ │ │ │ │ ┘ Native allocation logic:\nTotal available: ~105 GB Model + activations: ~60-65 GB Remaining: ~40-45 GB KV cache allocated: ~44 GB ✓ Clean, simple, accurate.\nContainer Execution: Docker’s Interference In Docker containers, TensorRT-LLM still uses CUDA APIs, but Docker’s cgroup accounting pollutes the results:\n┌ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ T ┌ │ │ │ └ D \" ┌ │ │ │ └ T ( ─ ─ o ─ ─ o c ─ ─ e R ─ ─ t ─ ─ c o ─ ─ n e ─ ─ a ─ ─ k n ─ D \" \" ─ s d ─ ─ l ─ M W ~ ─ e t ─ o C O ─ o u ─ ─ ─ o e 1 ─ ↓ r a ↓ ─ c o n ─ r c ─ ─ U ─ d i 5 ─ i ─ k n l ─ R e ─ ─ n ─ e g ─ c n ─ e t y ─ T d ─ ─ i ─ l h G ─ g e ─ r a ─ - ─ ─ f ─ t B ─ r r ─ ' i 5 ─ L b ─ ─ i ─ s ─ o ─ s n 8 ─ L y ─ ─ e ─ ─ u R ─ e G ─ M ─ ─ d ─ ─ p A ─ v r B ─ D ─ ─ ─ ─ M ─ i ─ s o ─ ─ M ┐ │ │ │ ┘ s ─ e u l ─ e c ─ ─ e e u ─ w s e ─ e k ─ ─ m e s ─ : i f ─ s e ─ ─ o ┌ │ │ │ └ s a ─ n t ─ : r ─ ─ r ─ ─ g ─ g ─ ' ─ ─ y ─ ─ t e ─ f ─ ~ s ─ ─ : ─ S R ─ h \" ─ 7 o ─ 6 ─ ─ ─ y e ~ ─ i ─ 0 r ─ 0 a ─ ─ 1 ─ s s 8 ─ s ─ G ─ c ─ ─ 2 ─ t e ─ ─ B a ─ G c ─ ─ 8 ─ e r G ─ a ─ l ─ B o ─ ─ ─ m v B ─ s ─ R l ─ u ─ ─ G ─ e ─ ─ A o ─ a n ─ ─ B ─ ─ ─ M c ─ v t ─ ─ ┐ │ │ │ ┘ ─ \" \" ─ a i ─ ─ ─ ─ i n ─ ─ ─ ─ l g ─ ─ ┌ │ │ │ └ ┐ │ │ │ ┘ a ! ─ ─ ─ ─ b ) ─ ─ ─ ~ ─ l ─ ─ ─ F 1 ─ e ─ ─ ─ R 0 ─ ─ ─ ─ E 5 ─ ─ ─ ─ E G ─ ─ ─ ─ B ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ ┘ ─ ─ ─ ─ │ │ │ │ │ │ │ │ │ │ ─ ┐ │ │ │ │ │ │ │ │ │ ┘ Container allocation logic:\nDocker reports: ~60 GB available (wrong!) Model + activations: ~60-65 GB Remaining: ~0-5 GB (uh oh…) KV cache allocated: ~16-26 GB (conservative!) TensorRT-LLM plays it safe and allocates less KV cache to avoid OOM errors.\nThe Math: Where Does the Overhead Come From? Look at this correlation from Part 5:\nModel Container Overhead KV Cache Reduction DeepSeek-7B +30.83 GiB -27.74 GiB Qwen-72B +19.99 GiB -17.99 GiB GPT-OSS-120B +21.71 GiB -19.54 GiB Notice: Container overhead ≈ KV cache reduction (within 1-3 GB)\nThis isn’t a coincidence. Here’s what’s happening:\nNative memory allocation:\nT S M W K A ─ T o y o o V v ─ o t s d r a ─ t a t e k C i ─ a l e l s a l ─ l : m : p c a ─ : : a h b ─ c e l ─ e : e ─ : : ─ ─ 1 ~ ~ ~ ~ ─ 1 2 ~ 1 4 4 1 ─ 2 8 8 5 5 4 6 ─ 8 ─ G G G G G G ─ G B B B B B B B ( ( ( ( ✓ O w a s S e c a , i t f g i e d h v t r t a y i s t v ) i m e o a r n r s s g , , i n e t ) t e c m . p ) b u f f e r s ) Container memory allocation:\nT S M D W K A ─ T o y o o o V v ─ o t s d c r a ─ t a t e k k C i ─ a l e l e s a l ─ l : m : r p c a ─ : : : a h b ─ c e l ─ e : e ─ : : ─ ─ 1 ~ + ~ ~ ~ ─ 1 2 ~ 1 2 4 1 1 ─ 2 8 8 5 0 5 6 4 ─ 8 - - - ─ G G G 3 G 2 2 ─ G B B B 0 B 6 4 B ( ( G ( G G ✓ O w B a B B S e c , i ( t ( ( g p i r s d h h v e a r t a a d m i s n t u e v ) t i c e o o e s r m n d a s s ! f , , ) e v t e e t y t r e c h m m . e p a ) a r d b g u i f f n r f ) o e m r s d ) o u b l e - c o u n t i n g ! ) Docker’s double-counting creates phantom overhead that steals memory from the KV cache budget.\nWhy Not 50% Exactly? You might expect exactly 50% reduction if Docker was reporting half the memory. But the reduction varies (1.7x - 2.7x) because:\nBase model size differs - Smaller models have proportionally more KV cache Docker overhead scales - Larger allocations = more double-counting TensorRT-LLM is conservative - It leaves safety margins The pattern: Smaller models suffer worse because the fixed Docker overhead consumes a larger percentage of their memory budget.\nQuestion 2: Why Do All Natives Converge to ~44 GiB? This is the secondary mystery that caught my attention:\nModel Size Parameters Native KV Cache DeepSeek 7B 44.31 GiB Qwen 72B 44.71 GiB GPT-OSS 120B 43.19 GiB Wait… the 7B model uses essentially the same KV cache as the 120B model?\nWhy This Seems Wrong Intuitively, you’d expect:\nLarger models → More parameters → More layers → More KV cache needed But that’s not what the data shows!\nThe Explanation: Available Memory Ceiling TensorRT-LLM doesn’t allocate KV cache based on model size. It allocates based on available memory after loading the model.\nLet’s look at the native memory breakdown:\nDeepSeek-7B (Small model):\nT M A S A ─ K S o o c y v ─ V a t d t s a ─ f a e i t i ─ c e l l v e l ─ a t a m a ─ c y m w t b ─ h e e i l ─ e m m i o v e ─ a o g n e : ─ a r r h s r ─ l g y t : h ─ l i : s e ─ o n : a ─ c : d ─ a : ─ t ─ e ─ d ─ : ─ 1 ~ ~ ~ ~ ─ 4 ~ 2 7 1 8 1 ─ 4 5 8 0 0 ─ . 8 G G 3 ─ 3 G B G B ─ 1 G B B G ─ B ( B ─ G s ─ B m a ( l 4 l 3 ! % ) o f a v a i l a b l e ) Qwen2.5-72B (Large model):\nT M A S A ─ K S o o c y v ─ V a t d t s a ─ f a e i t i ─ c e l l v e l ─ a t a m a ─ c y m w t b ─ h e e i l ─ e m m i o v e ─ a o g n e : ─ a r r h s r ─ l g y t : h ─ l i : s e ─ o n : a ─ c : d ─ a : ─ t ─ e ─ d ─ : ─ 1 ~ ~ ~ ~ ─ 4 M 2 4 3 8 4 ─ 4 i 8 5 5 0 ─ . n G ─ 7 i G G G B G ─ 1 m B B B B ─ a ─ G l ( ─ B l a ( r 1 g 1 e 2 ! % ) o f c a l c u l a t e d a v a i l a b l e ! ) Wait, that math doesn’t work…\nThe Real Answer: TensorRT-LLM’s Allocation Strategy After analyzing the pattern, I believe TensorRT-LLM uses a ceiling-based allocation strategy:\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 # Pseudocode for TensorRT-LLM KV cache allocation def allocate_kv_cache(): total_memory = query_total_unified_memory() # ~128 GB # Load model first model_memory = load_model_weights() # Calculate available available = total_memory - model_memory - system_reserve # Allocate KV cache with ceiling max_kv_cache = 44 GB # Hardcoded or configured ceiling? kv_cache = min(available * 0.6, max_kv_cache) return kv_cache This would explain why:\nSmall models: Have tons of available memory, but hit the 44 GB ceiling Large models: Have less available memory, but still allocate close to 44 GB Why a Ceiling Exists There are good engineering reasons for a KV cache ceiling:\nPrevents memory thrashing - Too large a cache can hurt performance Reserves memory for batching - Need room for concurrent requests Conservative defaults - Better to be safe than OOM Hardware limitations - Memory bandwidth or cache line considerations The 72B Anomaly Notice Qwen-72B has the highest native KV cache (44.71 GB). This might be because:\nIts model architecture is more memory-efficient Quantization or sparsity reduces weight memory TensorRT-LLM optimizations for this model family But it’s still very close to the ~44 GB ceiling.\nWhat This Means for Production Understanding these two patterns has huge implications:\n1. Container KV Cache Reduction Matters More at Scale For small workloads (like my benchmark: 50 requests, 128 tokens), even 16 GB of KV cache is enough.\nBut in production:\n8k context window: You’ll hit the limit fast 32k context window: Containers will OOM or refuse requests 128k context window: Forget it - you need native execution The 2x KV cache reduction becomes a 2x throughput bottleneck at scale.\n2. Model Size Doesn’t Predict KV Cache Availability The ~44 GB convergence means:\nSmall models (7B) don’t get “extra” KV cache just because they’re small Large models (72B+) aren’t starved of KV cache just because they’re large Recommendation: Choose models based on:\nAccuracy requirements (obviously) Weight memory vs KV cache tradeoff Don’t assume bigger = less memory for serving 3. Docker is OK for Specific Use Cases If you’re running:\nShort contexts (≤2k tokens) Low concurrency (1-4 simultaneous requests) Small batches Then Docker’s reduced KV cache might be acceptable. But know you’re leaving 40-60% of serving capacity on the table.\n4. Native Execution for Maximum Throughput For production serving with:\nLong contexts (8k+) High concurrency (10+ simultaneous users) Large batch sizes Use native/chroot execution. The 2x KV cache advantage translates directly to 2x serving capacity.\nVisual Summary Let me show you the full picture:\n┌ │ │ │ │ │ │ └ ┌ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ ─ ─ N ┌ │ │ └ C ─ ─ C ┌ │ │ │ └ D ─ ─ A ─ ─ l ─ ─ O ─ ─ o ─ ─ T ─ M 7 ─ e ─ ─ N ─ M 7 ─ c ─ ─ I ─ o - ─ a ─ ─ T ─ o - ─ k ─ ─ V ─ d 4 ─ n ─ ─ A ─ d 4 ─ e ─ ─ E ─ e 5 ─ ─ ─ I ─ e 5 ─ r ─ ─ ─ l ─ m ─ ─ N ─ l ─ ─ ─ E ─ G ─ e ─ ─ E ─ G ─ ─ ─ X ─ B ─ m ─ ─ R ─ B ─ v ─ ─ E ─ ─ o ─ ─ ─ ─ e ─ ─ C ─ ─ r ─ ─ E ─ ─ r ─ ─ U ┬ │ │ ┴ y ─ ─ X ┬ │ │ │ ┴ h ─ ─ T ─ ─ ─ ─ E ─ ─ e ─ ─ I ─ A ─ v ─ ─ C ─ D P + ─ a ─ ─ O ─ c 1 ─ i ─ ─ U ─ o h 2 ─ d ─ ─ N ─ t 0 ─ e ─ ─ T ─ c a 0 ─ ─ ─ ─ i - ─ w ─ ─ I ─ k n - ─ = ─ ─ ( ─ v 3 ─ ─ ─ O ─ e t 3 ─ ─ ─ O ─ a 5 ─ = ─ ─ N ─ r o 0 ─ S ─ ─ p ─ t ─ ─ ─ ─ m G ─ t ─ ─ t ─ i G ─ M ─ ─ ( ─ B ─ o ─ ─ i ─ o B ─ a ─ ─ R ─ ─ l ─ ─ m ─ n ─ x ─ ─ e ┬ │ │ │ ┴ e ─ ─ a ─ s ─ i ─ ─ d ─ ─ n ─ ─ l ─ ─ m ─ ─ u ─ A ─ ─ ─ ) ┬ │ │ ┴ u ─ ─ c ─ c 1 ─ K ─ ─ ─ ─ m ─ ─ e ─ t 0 ─ V ─ ─ ─ ─ ─ ─ d ─ i - ─ ─ ─ ─ K █ ─ K ─ ─ ) ─ v 3 ─ c ─ ─ ─ V █ ─ V ─ ─ ─ a 5 ─ a ─ ─ ─ █ ─ ─ ─ ─ t ─ c ─ ─ ─ C █ ─ c ─ ─ ─ i G ─ h ─ ─ ─ a █ ─ a ─ ─ ─ o B ─ e ─ ─ ─ c █ ─ c ─ ─ ─ n ─ ─ ─ ─ h █ ─ h ─ ─ ─ s ─ b ─ ─ ─ e █ ─ e ─ ─ ─ ─ u ─ ─ ─ █ ─ ─ ─ ┬ │ │ │ ┴ d ─ ─ ─ ( █ ─ ─ ─ ─ ─ g ─ ─ ─ ~ █ ─ ─ ─ ─ K ( ─ e ─ ─ ─ 4 █ ─ ─ ─ ─ V ~ █ ─ t ─ ─ ─ 4 █ ─ ─ ─ ─ 2 █ ─ ─ ─ ─ █ ─ ─ ─ ─ C 0 █ ─ ─ ─ ─ G █ ─ ─ ─ ─ a █ ─ ─ ─ ─ B █ ─ ─ ─ ─ c G ─ ─ ─ ─ ) ─ ─ ─ ─ h B ─ ─ ─ ─ ─ ─ ─ ─ e ) ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ │ ┘ ─ ─ ┐ │ │ ┘ ─ ─ │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │ │ │ │ │ ─ ─ │ │ │ │ ─ ─ │ ─ ─ │ │ │ ─ ┐ ┘ ┐ ┘ Key Takeaways On the ~2x container reduction:\nDocker’s cgroup double-counts unified memory TensorRT-LLM sees “less available” memory Conservatively allocates smaller KV cache Container overhead ≈ KV cache reduction (almost 1:1) Smaller models suffer worse reduction ratios On the ~44 GiB native convergence:\nTensorRT-LLM likely has a KV cache ceiling (~44 GB) Small models hit the ceiling despite having more free memory Large models allocate near the ceiling despite tight budgets This is good engineering: prevents pathological cases Model size doesn’t predict KV cache availability What’s Next? This deep dive answered the “what” and “why” of the KV cache patterns. But there are still open questions:\nCan we configure TensorRT-LLM’s KV cache ceiling? Can Docker be patched to handle unified memory correctly? Do other unified memory systems (AMD MI300X) show the same pattern? What’s the optimal KV cache size for different workloads? These are questions for Phase 2 of the investigation. For now, the message is clear:\nIf you’re running large language models on Grace Hopper in production, understand your KV cache allocation. It’s the difference between maximal throughput and leaving half your serving capacity on the table.\nPrevious: ← Part 5: What I Learned (And What’s Next)\nGitHub Repo: benchmark-spark Interactive Charts: Results Dashboard\nGot questions or observations? Open an issue or discussion on the GitHub repo!\n",
-  "wordCount" : "3684",
+  "articleBody": "The Pattern That Demands Explanation In Part 4, I showed you 60 benchmark runs that revealed a consistent pattern. But one table in particular kept me up at night:\nModel Native KV Container KV Reduction Factor DeepSeek-7B 44.31 GiB 16.57 GiB 2.7x less GPT-OSS-120B 43.19 GiB 23.65 GiB 1.8x less Qwen2.5-72B 44.71 GiB 26.72 GiB 1.7x less Two questions immediately jump out:\nWhy do containers consistently allocate ~2x less KV cache? (The main mystery) Why do all native runs converge to ~44 GiB? (The secondary puzzle) Let’s answer both.\nQuestion 1: Why ~2x Less KV Cache in Containers? The High-Level Answer From Part 3, you know Docker’s cgroups double-count unified memory. But how does that translate to exactly 40-60% less KV cache?\nThe answer lies in how TensorRT-LLM allocates KV cache memory.\nTensorRT-LLM’s Memory Budget Calculation When TensorRT-LLM starts up, it performs a memory budget calculation:\n1 2 3 4 5 . . . . . Q L A C A u o l a l e a l l l r d o c o y c u c m a l a t o t a t o d e t e t e e a l s K l p r V w a e a e c m c v i e a a a g i c i h f n h l t o i e a s r n b g = l i a e n c \" f t t f ( m o i r r e v e e m u a e m o n t \" a r i i i y f o m n i n e i e s m n d o g a r m n y m e d e m m o t o r e r y m y p ) o r a r y b u f f e r s Step 1 is where Docker breaks everything.\nNative Execution: Clean Memory View In native/chroot execution, TensorRT-LLM queries memory directly via CUDA:\n┌ │ │ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ T ┌ │ │ │ └ T ─ ─ o ─ ─ e ─ ─ t ─ ─ n ─ ─ a ─ ─ s ─ ─ l ─ M W ~ ─ o ─ ─ ─ o e 1 ─ r ─ ─ G ─ d i 5 ─ R ─ ─ r ─ e g ─ T ─ ─ a ─ l h G ─ - ─ ─ c ─ t B ─ L ─ ─ e ─ s ─ L ─ ─ ─ ─ M ─ ─ B ─ ─ ─ ─ l ─ ─ s ─ ─ a ┐ │ │ │ ┘ e ─ ─ c e ─ ─ k s ─ ─ w ┌ │ │ │ └ : ─ ─ e ─ ─ ─ ─ l ─ ─ 1 ─ ─ l ─ S R ─ 0 ─ ─ ─ y e ~ ─ 5 ─ ─ U ─ s s 8 ─ ─ ─ n ─ t e ─ G ─ ─ i ─ e r G ─ B ─ ─ f ─ m v B ─ ─ ─ i ─ e ─ a ─ ─ e ─ ─ v ─ ─ d ┐ │ │ │ ┘ a ─ ─ i ─ ─ M l ─ ─ e ┌ │ │ │ └ a ─ ─ m ─ ─ b ─ ─ o ─ ~ ─ l ─ ─ r ─ F 1 ─ e ─ ─ y ─ R 0 ─ ─ ─ : ─ E 5 ─ ─ ─ ─ E G ─ ─ ─ 1 ─ B ─ ─ ─ 2 ─ ─ ─ ─ 8 ┐ │ │ │ ┘ ─ ─ ─ ─ G │ │ │ │ │ ─ ┐ B │ │ │ ┘ │ Native allocation logic:\nTotal available: ~105 GB Model + activations: ~60-65 GB Remaining: ~40-45 GB KV cache allocated: ~44 GB ✓ Clean, simple, accurate.\nContainer Execution: Docker’s Interference In Docker containers, TensorRT-LLM still uses CUDA APIs, but Docker’s cgroup accounting pollutes the results:\n┌ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ T ┌ │ │ │ └ D \" ┌ │ │ │ └ T ( ─ ─ o ─ ─ o c ─ ─ e R ─ ─ t ─ ─ c o ─ ─ n e ─ ─ a ─ ─ k n ─ D \" \" ─ s d ─ ─ l ─ M W ~ ─ e t ─ o C O ─ o u ─ ─ ─ o e 1 ─ ↓ r a ↓ ─ c o n ─ r c ─ ─ U ─ d i 5 ─ i ─ k n l ─ R e ─ ─ n ─ e g ─ c n ─ e t y ─ T d ─ ─ i ─ l h G ─ g e ─ r a ─ - ─ ─ f ─ t B ─ r r ─ ' i 5 ─ L b ─ ─ i ─ s ─ o ─ s n 8 ─ L y ─ ─ e ─ ─ u R ─ e G ─ M ─ ─ d ─ ─ p A ─ v r B ─ D ─ ─ ─ ─ M ─ i ─ s o ─ ─ M ┐ │ │ │ ┘ s ─ e u l ─ e c ─ ─ e e u ─ w s e ─ e k ─ ─ m e s ─ : i f ─ s e ─ ─ o ┌ │ │ │ └ s a ─ n t ─ : r ─ ─ r ─ ─ g ─ g ─ ' ─ ─ y ─ ─ t e ─ f ─ ~ s ─ ─ : ─ S R ─ h \" ─ 7 o ─ 6 ─ ─ ─ y e ~ ─ i ─ 0 r ─ 0 a ─ ─ 1 ─ s s 8 ─ s ─ G ─ c ─ ─ 2 ─ t e ─ ─ B a ─ G c ─ ─ 8 ─ e r G ─ a ─ l ─ B o ─ ─ ─ m v B ─ s ─ R l ─ u ─ ─ G ─ e ─ ─ A o ─ a n ─ ─ B ─ ─ ─ M c ─ v t ─ ─ ┐ │ │ │ ┘ ─ \" \" ─ a i ─ ─ ─ ─ i n ─ ─ ─ ─ l g ─ ─ ┌ │ │ │ └ ┐ │ │ │ ┘ a ! ─ ─ ─ ─ b ) ─ ─ ─ ~ ─ l ─ ─ ─ F 1 ─ e ─ ─ ─ R 0 ─ ─ ─ ─ E 5 ─ ─ ─ ─ E G ─ ─ ─ ─ B ─ ─ ─ ─ ─ ─ ─ ┐ │ │ │ ┘ ─ ─ ─ ─ │ │ │ │ │ │ │ │ │ │ ─ ┐ │ │ │ │ │ │ │ │ │ ┘ Container allocation logic:\nDocker reports: ~60 GB available (wrong!) Model + activations: ~60-65 GB Remaining: ~0-5 GB (uh oh…) KV cache allocated: ~16-26 GB (conservative!) TensorRT-LLM plays it safe and allocates less KV cache to avoid OOM errors.\nThe Math: Where Does the Overhead Come From? Look at this correlation from Part 5:\nModel Container Overhead KV Cache Reduction DeepSeek-7B +30.83 GiB -27.74 GiB Qwen-72B +19.99 GiB -17.99 GiB GPT-OSS-120B +21.71 GiB -19.54 GiB Notice: Container overhead ≈ KV cache reduction (within 1-3 GB)\nThis isn’t a coincidence. Here’s what’s happening:\nNative memory allocation:\nT S M W K A ─ T o y o o V v ─ o t s d r a ─ t a t e k C i ─ a l e l s a l ─ l : m : p c a ─ : : a h b ─ c e l ─ e : e ─ : : ─ ─ 1 ~ ~ ~ ~ ─ 1 2 ~ 1 4 4 1 ─ 2 8 8 5 5 4 6 ─ 8 ─ G G G G G G ─ G B B B B B B B ( ( ( ( ✓ O w a s S e c a , i t f g i e d h v t r t a y i s t v ) i m e o a r n r s s g , , i n e t ) t e c m . p ) b u f f e r s ) Container memory allocation:\nT S M D W K A ─ T o y o o o V v ─ o t s d c r a ─ t a t e k k C i ─ a l e l e s a l ─ l : m : r p c a ─ : : : a h b ─ c e l ─ e : e ─ : : ─ ─ 1 ~ + ~ ~ ~ ─ 1 2 ~ 1 2 4 1 1 ─ 2 8 8 5 0 5 6 4 ─ 8 - - - ─ G G G 3 G 2 2 ─ G B B B 0 B 6 4 B ( ( G ( G G ✓ O w B a B B S e c , i ( t ( ( g p i r s d h h v e a r t a a d m i s n t u e v ) t i c e o o e s r m n d a s s ! f , , ) e v t e e t y t r e c h m m . e p a ) a r d b g u i f f n r f ) o e m r s d ) o u b l e - c o u n t i n g ! ) Docker’s double-counting creates phantom overhead that steals memory from the KV cache budget.\nWhy Not 50% Exactly? You might expect exactly 50% reduction if Docker was reporting half the memory. But the reduction varies (1.7x - 2.7x) because:\nBase model size differs - Smaller models have proportionally more KV cache Docker overhead scales - Larger allocations = more double-counting TensorRT-LLM is conservative - It leaves safety margins The pattern: Smaller models suffer worse because the fixed Docker overhead consumes a larger percentage of their memory budget.\nQuestion 2: Why Do All Natives Converge to ~44 GiB? This is the secondary mystery that caught my attention:\nModel Size Parameters Native KV Cache DeepSeek 7B 44.31 GiB Qwen 72B 44.71 GiB GPT-OSS 120B 43.19 GiB Wait… the 7B model uses essentially the same KV cache as the 120B model?\nWhy This Seems Wrong Intuitively, you’d expect:\nLarger models → More parameters → More layers → More KV cache needed But that’s not what the data shows!\nThe Explanation: Available Memory Ceiling TensorRT-LLM doesn’t allocate KV cache based on model size. It allocates based on available memory after loading the model.\nLet’s look at the native memory breakdown:\nDeepSeek-7B (Small model):\nT M A S A ─ K S o o c y v ─ V a t d t s a ─ f a e i t i ─ c e l l v e l ─ a t a m a ─ c y m w t b ─ h e e i l ─ e m m i o v e ─ a o g n e : ─ a r r h s r ─ l g y t : h ─ l i : s e ─ o n : a ─ c : d ─ a : ─ t ─ e ─ d ─ : ─ 1 ~ ~ ~ ~ ─ 4 ~ 2 7 1 8 1 ─ 4 5 8 0 0 ─ . 8 G G 3 ─ 3 G B G B ─ 1 G B B G ─ B ( B ─ G s ─ B m a ( l 4 l 3 ! % ) o f a v a i l a b l e ) Qwen2.5-72B (Large model):\nT M A S A ─ K S o o c y v ─ V a t d t s a ─ f a e i t i ─ c e l l v e l ─ a t a m a ─ c y m w t b ─ h e e i l ─ e m m i o v e ─ a o g n e : ─ a r r h s r ─ l g y t : h ─ l i : s e ─ o n : a ─ c : d ─ a : ─ t ─ e ─ d ─ : ─ 1 ~ ~ ~ ~ ─ 4 M 2 4 3 8 4 ─ 4 i 8 5 5 0 ─ . n G ─ 7 i G G G B G ─ 1 m B B B B ─ a ─ G l ( ─ B l a ( r 1 g 1 e 2 ! % ) o f c a l c u l a t e d a v a i l a b l e ! ) Wait, that math doesn’t work…\nThe Real Answer: TensorRT-LLM’s Allocation Strategy After analyzing the pattern, I believe TensorRT-LLM uses a ceiling-based allocation strategy:\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 # Pseudocode for TensorRT-LLM KV cache allocation def allocate_kv_cache(): total_memory = query_total_unified_memory() # ~128 GB # Load model first model_memory = load_model_weights() # Calculate available available = total_memory - model_memory - system_reserve # Allocate KV cache with ceiling max_kv_cache = 44 GB # Hardcoded or configured ceiling? kv_cache = min(available * 0.6, max_kv_cache) return kv_cache This would explain why:\nSmall models: Have tons of available memory, but hit the 44 GB ceiling Large models: Have less available memory, but still allocate close to 44 GB Why a Ceiling Exists There are good engineering reasons for a KV cache ceiling:\nPrevents memory thrashing - Too large a cache can hurt performance Reserves memory for batching - Need room for concurrent requests Conservative defaults - Better to be safe than OOM Hardware limitations - Memory bandwidth or cache line considerations The 72B Anomaly Notice Qwen-72B has the highest native KV cache (44.71 GB). This might be because:\nIts model architecture is more memory-efficient Quantization or sparsity reduces weight memory TensorRT-LLM optimizations for this model family But it’s still very close to the ~44 GB ceiling.\nWhat This Means for Production Understanding these two patterns has huge implications:\n1. Container KV Cache Reduction Matters More at Scale For small workloads (like my benchmark: 50 requests, 128 tokens), even 16 GB of KV cache is enough.\nBut in production:\n8k context window: You’ll hit the limit fast 32k context window: Containers will OOM or refuse requests 128k context window: Forget it - you need native execution The 2x KV cache reduction becomes a 2x throughput bottleneck at scale.\n2. Model Size Doesn’t Predict KV Cache Availability The ~44 GB convergence means:\nSmall models (7B) don’t get “extra” KV cache just because they’re small Large models (72B+) aren’t starved of KV cache just because they’re large Recommendation: Choose models based on:\nAccuracy requirements (obviously) Weight memory vs KV cache tradeoff Don’t assume bigger = less memory for serving 3. Docker is OK for Specific Use Cases If you’re running:\nShort contexts (≤2k tokens) Low concurrency (1-4 simultaneous requests) Small batches Then Docker’s reduced KV cache might be acceptable. But know you’re leaving 40-60% of serving capacity on the table.\n4. Native Execution for Maximum Throughput For production serving with:\nLong contexts (8k+) High concurrency (10+ simultaneous users) Large batch sizes Use native/chroot execution. The 2x KV cache advantage translates directly to 2x serving capacity.\nVisual Summary Let me show you the full picture:\n┌ │ │ │ │ │ │ └ ┌ │ │ │ │ │ │ │ └ ─ ─ ─ ─ ─ ─ ─ ─ ─ N ┌ │ │ └ C ─ ─ C ┌ │ │ │ └ D ─ ─ A ─ ─ l ─ ─ O ─ ─ o ─ ─ T ─ M 7 ─ e ─ ─ N ─ M 7 ─ c ─ ─ I ─ o - ─ a ─ ─ T ─ o - ─ k ─ ─ V ─ d 4 ─ n ─ ─ A ─ d 4 ─ e ─ ─ E ─ e 5 ─ ─ ─ I ─ e 5 ─ r ─ ─ ─ l ─ m ─ ─ N ─ l ─ ─ ─ E ─ G ─ e ─ ─ E ─ G ─ ─ ─ X ─ B ─ m ─ ─ R ─ B ─ v ─ ─ E ─ ─ o ─ ─ ─ ─ e ─ ─ C ─ ─ r ─ ─ E ─ ─ r ─ ─ U ┬ │ │ ┴ y ─ ─ X ┬ │ │ │ ┴ h ─ ─ T ─ ─ ─ ─ E ─ ─ e ─ ─ I ─ A ─ v ─ ─ C ─ D P + ─ a ─ ─ O ─ c 1 ─ i ─ ─ U ─ o h 2 ─ d ─ ─ N ─ t 0 ─ e ─ ─ T ─ c a 0 ─ ─ ─ ─ i - ─ w ─ ─ I ─ k n - ─ = ─ ─ ( ─ v 3 ─ ─ ─ O ─ e t 3 ─ ─ ─ O ─ a 5 ─ = ─ ─ N ─ r o 0 ─ S ─ ─ p ─ t ─ ─ ─ ─ m G ─ t ─ ─ t ─ i G ─ M ─ ─ ( ─ B ─ o ─ ─ i ─ o B ─ a ─ ─ R ─ ─ l ─ ─ m ─ n ─ x ─ ─ e ┬ │ │ │ ┴ e ─ ─ a ─ s ─ i ─ ─ d ─ ─ n ─ ─ l ─ ─ m ─ ─ u ─ A ─ ─ ─ ) ┬ │ │ ┴ u ─ ─ c ─ c 1 ─ K ─ ─ ─ ─ m ─ ─ e ─ t 0 ─ V ─ ─ ─ ─ ─ ─ d ─ i - ─ ─ ─ ─ K █ ─ K ─ ─ ) ─ v 3 ─ c ─ ─ ─ V █ ─ V ─ ─ ─ a 5 ─ a ─ ─ ─ █ ─ ─ ─ ─ t ─ c ─ ─ ─ C █ ─ c ─ ─ ─ i G ─ h ─ ─ ─ a █ ─ a ─ ─ ─ o B ─ e ─ ─ ─ c █ ─ c ─ ─ ─ n ─ ─ ─ ─ h █ ─ h ─ ─ ─ s ─ b ─ ─ ─ e █ ─ e ─ ─ ─ ─ u ─ ─ ─ █ ─ ─ ─ ┬ │ │ │ ┴ d ─ ─ ─ ( █ ─ ─ ─ ─ ─ g ─ ─ ─ ~ █ ─ ─ ─ ─ K ( ─ e ─ ─ ─ 4 █ ─ ─ ─ ─ V ~ █ ─ t ─ ─ ─ 4 █ ─ ─ ─ ─ 2 █ ─ ─ ─ ─ █ ─ ─ ─ ─ C 0 █ ─ ─ ─ ─ G █ ─ ─ ─ ─ a █ ─ ─ ─ ─ B █ ─ ─ ─ ─ c G ─ ─ ─ ─ ) ─ ─ ─ ─ h B ─ ─ ─ ─ ─ ─ ─ ─ e ) ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │ │ ┘ ─ ─ ┐ │ │ ┘ ─ ─ │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │ │ │ │ │ ─ ─ │ │ │ │ ─ ─ │ ─ ─ │ │ │ ─ ┐ ┘ ┐ ┘ Key Takeaways On the ~2x container reduction:\nDocker’s cgroup double-counts unified memory TensorRT-LLM sees “less available” memory Conservatively allocates smaller KV cache Container overhead ≈ KV cache reduction (almost 1:1) Smaller models suffer worse reduction ratios On the ~44 GiB native convergence:\nTensorRT-LLM likely has a KV cache ceiling (~44 GB) Small models hit the ceiling despite having more free memory Large models allocate near the ceiling despite tight budgets This is good engineering: prevents pathological cases Model size doesn’t predict KV cache availability What’s Next? This deep dive answered the “what” and “why” of the KV cache patterns. But there are still open questions:\nCan we configure TensorRT-LLM’s KV cache ceiling? Can Docker be patched to handle unified memory correctly? Do other unified memory systems (AMD MI300X) show the same pattern? What’s the optimal KV cache size for different workloads? These are questions for Phase 2 of the investigation. For now, the message is clear:\nIf you’re running large language models on Grace Blackwell in production, understand your KV cache allocation. It’s the difference between maximal throughput and leaving half your serving capacity on the table.\nPrevious: ← Part 5: What I Learned (And What’s Next)\nGitHub Repo: benchmark-spark Interactive Charts: Results Dashboard\nGot questions or observations? Open an issue or discussion on the GitHub repo!\n",
+  "wordCount" : "3687",
   "inLanguage": "en",
   "datePublished": "2025-11-08T15:00:00Z",
   "dateModified": "2025-11-08T15:00:00Z",
@@ -524,7 +524,7 @@
       xmlns="http://www.w3.org/2000/svg"
       font-family="Menlo,Lucida Console,monospace"
       
-        viewBox="0 0 384 185"
+        viewBox="0 0 408 185"
       >
       <g transform='translate(8,16)'>
 <text text-anchor='middle' x='0' y='4' fill='currentColor' style='font-size:1em'>┌</text>
@@ -633,18 +633,18 @@
 <text text-anchor='middle' x='112' y='148' fill='currentColor' style='font-size:1em'>M</text>
 <text text-anchor='middle' x='112' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='120' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>H</text>
+<text text-anchor='middle' x='120' y='20' fill='currentColor' style='font-size:1em'>B</text>
 <text text-anchor='middle' x='120' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='120' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='120' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='128' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='128' y='20' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='128' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='128' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='128' y='148' fill='currentColor' style='font-size:1em'>s</text>
 <text text-anchor='middle' x='128' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='136' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='136' y='20' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='136' y='52' fill='currentColor' style='font-size:1em'>┐</text>
 <text text-anchor='middle' x='136' y='68' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='136' y='84' fill='currentColor' style='font-size:1em'>│</text>
@@ -653,15 +653,15 @@
 <text text-anchor='middle' x='136' y='148' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='136' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='144' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='144' y='20' fill='currentColor' style='font-size:1em'>p</text>
+<text text-anchor='middle' x='144' y='20' fill='currentColor' style='font-size:1em'>c</text>
 <text text-anchor='middle' x='144' y='148' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='144' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='152' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='152' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='152' y='20' fill='currentColor' style='font-size:1em'>k</text>
 <text text-anchor='middle' x='152' y='148' fill='currentColor' style='font-size:1em'>s</text>
 <text text-anchor='middle' x='152' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='160' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='160' y='20' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='160' y='20' fill='currentColor' style='font-size:1em'>w</text>
 <text text-anchor='middle' x='160' y='52' fill='currentColor' style='font-size:1em'>┌</text>
 <text text-anchor='middle' x='160' y='68' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='160' y='84' fill='currentColor' style='font-size:1em'>│</text>
@@ -670,17 +670,18 @@
 <text text-anchor='middle' x='160' y='148' fill='currentColor' style='font-size:1em'>:</text>
 <text text-anchor='middle' x='160' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='168' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='168' y='20' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='168' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='168' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='168' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='176' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>U</text>
+<text text-anchor='middle' x='176' y='20' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='176' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='176' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='176' y='148' fill='currentColor' style='font-size:1em'>1</text>
 <text text-anchor='middle' x='176' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='184' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>n</text>
+<text text-anchor='middle' x='184' y='20' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='184' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='184' y='68' fill='currentColor' style='font-size:1em'>S</text>
 <text text-anchor='middle' x='184' y='84' fill='currentColor' style='font-size:1em'>R</text>
@@ -688,7 +689,6 @@
 <text text-anchor='middle' x='184' y='148' fill='currentColor' style='font-size:1em'>0</text>
 <text text-anchor='middle' x='184' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='192' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='192' y='20' fill='currentColor' style='font-size:1em'>i</text>
 <text text-anchor='middle' x='192' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='192' y='68' fill='currentColor' style='font-size:1em'>y</text>
 <text text-anchor='middle' x='192' y='84' fill='currentColor' style='font-size:1em'>e</text>
@@ -697,7 +697,7 @@
 <text text-anchor='middle' x='192' y='148' fill='currentColor' style='font-size:1em'>5</text>
 <text text-anchor='middle' x='192' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='200' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>f</text>
+<text text-anchor='middle' x='200' y='20' fill='currentColor' style='font-size:1em'>U</text>
 <text text-anchor='middle' x='200' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='200' y='68' fill='currentColor' style='font-size:1em'>s</text>
 <text text-anchor='middle' x='200' y='84' fill='currentColor' style='font-size:1em'>s</text>
@@ -705,7 +705,7 @@
 <text text-anchor='middle' x='200' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='200' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='208' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='208' y='20' fill='currentColor' style='font-size:1em'>i</text>
+<text text-anchor='middle' x='208' y='20' fill='currentColor' style='font-size:1em'>n</text>
 <text text-anchor='middle' x='208' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='208' y='68' fill='currentColor' style='font-size:1em'>t</text>
 <text text-anchor='middle' x='208' y='84' fill='currentColor' style='font-size:1em'>e</text>
@@ -713,7 +713,7 @@
 <text text-anchor='middle' x='208' y='148' fill='currentColor' style='font-size:1em'>G</text>
 <text text-anchor='middle' x='208' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='216' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='216' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='216' y='20' fill='currentColor' style='font-size:1em'>i</text>
 <text text-anchor='middle' x='216' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='216' y='68' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='216' y='84' fill='currentColor' style='font-size:1em'>r</text>
@@ -722,7 +722,7 @@
 <text text-anchor='middle' x='216' y='148' fill='currentColor' style='font-size:1em'>B</text>
 <text text-anchor='middle' x='216' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='224' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='224' y='20' fill='currentColor' style='font-size:1em'>d</text>
+<text text-anchor='middle' x='224' y='20' fill='currentColor' style='font-size:1em'>f</text>
 <text text-anchor='middle' x='224' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='224' y='68' fill='currentColor' style='font-size:1em'>m</text>
 <text text-anchor='middle' x='224' y='84' fill='currentColor' style='font-size:1em'>v</text>
@@ -730,19 +730,20 @@
 <text text-anchor='middle' x='224' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='224' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='232' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='232' y='20' fill='currentColor' style='font-size:1em'>i</text>
 <text text-anchor='middle' x='232' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='232' y='84' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='232' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='232' y='148' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='232' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='240' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='240' y='20' fill='currentColor' style='font-size:1em'>M</text>
+<text text-anchor='middle' x='240' y='20' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='240' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='240' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='240' y='148' fill='currentColor' style='font-size:1em'>v</text>
 <text text-anchor='middle' x='240' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='248' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='248' y='20' fill='currentColor' style='font-size:1em'>e</text>
+<text text-anchor='middle' x='248' y='20' fill='currentColor' style='font-size:1em'>d</text>
 <text text-anchor='middle' x='248' y='52' fill='currentColor' style='font-size:1em'>┐</text>
 <text text-anchor='middle' x='248' y='68' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='248' y='84' fill='currentColor' style='font-size:1em'>│</text>
@@ -751,15 +752,14 @@
 <text text-anchor='middle' x='248' y='148' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='248' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='256' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='256' y='20' fill='currentColor' style='font-size:1em'>m</text>
 <text text-anchor='middle' x='256' y='148' fill='currentColor' style='font-size:1em'>i</text>
 <text text-anchor='middle' x='256' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='264' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='264' y='20' fill='currentColor' style='font-size:1em'>o</text>
+<text text-anchor='middle' x='264' y='20' fill='currentColor' style='font-size:1em'>M</text>
 <text text-anchor='middle' x='264' y='148' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='264' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='272' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='272' y='20' fill='currentColor' style='font-size:1em'>r</text>
+<text text-anchor='middle' x='272' y='20' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='272' y='52' fill='currentColor' style='font-size:1em'>┌</text>
 <text text-anchor='middle' x='272' y='68' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='272' y='84' fill='currentColor' style='font-size:1em'>│</text>
@@ -768,19 +768,20 @@
 <text text-anchor='middle' x='272' y='148' fill='currentColor' style='font-size:1em'>a</text>
 <text text-anchor='middle' x='272' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='280' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='280' y='20' fill='currentColor' style='font-size:1em'>y</text>
+<text text-anchor='middle' x='280' y='20' fill='currentColor' style='font-size:1em'>m</text>
 <text text-anchor='middle' x='280' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='280' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='280' y='148' fill='currentColor' style='font-size:1em'>b</text>
 <text text-anchor='middle' x='280' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='288' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='288' y='20' fill='currentColor' style='font-size:1em'>:</text>
+<text text-anchor='middle' x='288' y='20' fill='currentColor' style='font-size:1em'>o</text>
 <text text-anchor='middle' x='288' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='288' y='100' fill='currentColor' style='font-size:1em'>~</text>
 <text text-anchor='middle' x='288' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='288' y='148' fill='currentColor' style='font-size:1em'>l</text>
 <text text-anchor='middle' x='288' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='296' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='296' y='20' fill='currentColor' style='font-size:1em'>r</text>
 <text text-anchor='middle' x='296' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='296' y='68' fill='currentColor' style='font-size:1em'>F</text>
 <text text-anchor='middle' x='296' y='100' fill='currentColor' style='font-size:1em'>1</text>
@@ -788,38 +789,38 @@
 <text text-anchor='middle' x='296' y='148' fill='currentColor' style='font-size:1em'>e</text>
 <text text-anchor='middle' x='296' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='304' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='304' y='20' fill='currentColor' style='font-size:1em'>1</text>
+<text text-anchor='middle' x='304' y='20' fill='currentColor' style='font-size:1em'>y</text>
 <text text-anchor='middle' x='304' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='304' y='68' fill='currentColor' style='font-size:1em'>R</text>
 <text text-anchor='middle' x='304' y='100' fill='currentColor' style='font-size:1em'>0</text>
 <text text-anchor='middle' x='304' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='304' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='312' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='312' y='20' fill='currentColor' style='font-size:1em'>2</text>
+<text text-anchor='middle' x='312' y='20' fill='currentColor' style='font-size:1em'>:</text>
 <text text-anchor='middle' x='312' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='312' y='68' fill='currentColor' style='font-size:1em'>E</text>
 <text text-anchor='middle' x='312' y='100' fill='currentColor' style='font-size:1em'>5</text>
 <text text-anchor='middle' x='312' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='312' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='320' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='320' y='20' fill='currentColor' style='font-size:1em'>8</text>
 <text text-anchor='middle' x='320' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='320' y='68' fill='currentColor' style='font-size:1em'>E</text>
 <text text-anchor='middle' x='320' y='100' fill='currentColor' style='font-size:1em'>G</text>
 <text text-anchor='middle' x='320' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='320' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='328' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='328' y='20' fill='currentColor' style='font-size:1em'>1</text>
 <text text-anchor='middle' x='328' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='328' y='100' fill='currentColor' style='font-size:1em'>B</text>
 <text text-anchor='middle' x='328' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='328' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='336' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='336' y='20' fill='currentColor' style='font-size:1em'>G</text>
+<text text-anchor='middle' x='336' y='20' fill='currentColor' style='font-size:1em'>2</text>
 <text text-anchor='middle' x='336' y='52' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='336' y='116' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='336' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='344' y='4' fill='currentColor' style='font-size:1em'>─</text>
-<text text-anchor='middle' x='344' y='20' fill='currentColor' style='font-size:1em'>B</text>
+<text text-anchor='middle' x='344' y='20' fill='currentColor' style='font-size:1em'>8</text>
 <text text-anchor='middle' x='344' y='52' fill='currentColor' style='font-size:1em'>┐</text>
 <text text-anchor='middle' x='344' y='68' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='344' y='84' fill='currentColor' style='font-size:1em'>│</text>
@@ -829,6 +830,7 @@
 <text text-anchor='middle' x='352' y='4' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='352' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='360' y='4' fill='currentColor' style='font-size:1em'>─</text>
+<text text-anchor='middle' x='360' y='20' fill='currentColor' style='font-size:1em'>G</text>
 <text text-anchor='middle' x='360' y='52' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='360' y='68' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='360' y='84' fill='currentColor' style='font-size:1em'>│</text>
@@ -836,11 +838,12 @@
 <text text-anchor='middle' x='360' y='116' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='360' y='164' fill='currentColor' style='font-size:1em'>─</text>
 <text text-anchor='middle' x='368' y='4' fill='currentColor' style='font-size:1em'>┐</text>
-<text text-anchor='middle' x='368' y='20' fill='currentColor' style='font-size:1em'>│</text>
+<text text-anchor='middle' x='368' y='20' fill='currentColor' style='font-size:1em'>B</text>
 <text text-anchor='middle' x='368' y='36' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='368' y='132' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='368' y='148' fill='currentColor' style='font-size:1em'>│</text>
 <text text-anchor='middle' x='368' y='164' fill='currentColor' style='font-size:1em'>┘</text>
+<text text-anchor='middle' x='392' y='20' fill='currentColor' style='font-size:1em'>│</text>
 </g>
 
     </svg>
@@ -3199,7 +3202,7 @@
 <li>What&rsquo;s the optimal KV cache size for different workloads?</li>
 </ul>
 <p>These are questions for <strong>Phase 2</strong> of the investigation. For now, the message is clear:</p>
-<p><strong>If you&rsquo;re running large language models on Grace Hopper in production, understand your KV cache allocation. It&rsquo;s the difference between maximal throughput and leaving half your serving capacity on the table.</strong></p>
+<p><strong>If you&rsquo;re running large language models on Grace Blackwell in production, understand your KV cache allocation. It&rsquo;s the difference between maximal throughput and leaving half your serving capacity on the table.</strong></p>
 <hr>
 <p><strong>Previous</strong>: <a href="../05-what-we-learned">← Part 5: What I Learned (And What&rsquo;s Next)</a></p>
 <p><strong>GitHub Repo</strong>: <a href="https://github.com/brandonrc/benchmark-spark">benchmark-spark</a>

@@ -2,12 +2,12 @@
 title: "The Unified Memory Revelation: Why Docker Double-Counts"
 date: 2025-11-08T12:00:00-00:00
 draft: false
-tags: ["dgx-spark", "grace-hopper", "unified-memory", "cgroups", "docker"]
+tags: ["dgx-spark", "grace-blackwell", "unified-memory", "cgroups", "docker"]
 categories: ["Investigation"]
 author: "Brandon Geraci"
 showToc: true
 TocOpen: false
-description: "The 'aha!' moment: Docker's cgroups were designed for discrete GPUs, but Grace Hopper has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead."
+description: "The 'aha!' moment: Docker's cgroups were designed for discrete GPUs, but Grace Blackwell has unified memory. The result? Docker counts GPU memory twice, creating 20-30GB of phantom overhead."
 ---
 
 ## The Question That Started It All
@@ -47,13 +47,13 @@ When Docker runs on these systems:
 - nvidia-docker just passes through GPU access
 - **No double-counting** because they're separate
 
-## Grace Hopper: The Game Changer
+## Grace Blackwell: The Game Changer
 
-Now look at Grace Hopper (our DGX Spark):
+Now look at Grace Blackwell (our DGX Spark):
 
 ```
 ┌─────────────────────────────────────┐
-│      Grace Hopper System            │
+│      Grace Blackwell System            │
 │                                     │
 │  ┌────────────────────────────────┐ │
 │  │   UNIFIED MEMORY (128 GB)      │ │
@@ -89,12 +89,12 @@ On a traditional GPU system, cgroups see:
 - CPU RAM: Managed by cgroup ✓
 - GPU VRAM: Outside cgroup (invisible) ✓
 
-On Grace Hopper unified memory, cgroups see:
+On Grace Blackwell unified memory, cgroups see:
 - The entire 128GB pool as "system RAM" ✗
 
 ## The Double-Counting
 
-Here's what happens when you run a model in a Docker container on Grace Hopper:
+Here's what happens when you run a model in a Docker container on Grace Blackwell:
 
 1. **Model loads** into unified memory (let's say 70GB)
 2. **CUDA driver** records this as GPU allocation
@@ -138,7 +138,7 @@ Discrete GPU:
 - Total: 64 + 80 = 144GB
 - No overlap ✓
 
-Unified Memory (Grace Hopper):
+Unified Memory (Grace Blackwell):
 - cgroup tracks: "System RAM" (128GB)
 - CUDA tracks: Part of that same 128GB
 - Docker's accounting: Confused!
@@ -186,17 +186,17 @@ Maybe? Potential solutions:
 
 1. **Update nvidia-container-toolkit** for unified memory awareness
 2. **Use `--memory=unlimited`** to disable cgroup memory limits
-3. **Special cgroup configuration** for Grace Hopper
+3. **Special cgroup configuration** for Grace Blackwell
 4. **Wait for Docker/kernel patches** that understand unified memory
 
-But for now, the simplest solution: **Use native execution for large models on Grace Hopper**.
+But for now, the simplest solution: **Use native execution for large models on Grace Blackwell**.
 
 ## The Takeaway
 
-This isn't Docker being "bad" or Grace Hopper being "broken." It's a **mismatch between technology generations**:
+This isn't Docker being "bad" or Grace Blackwell being "broken." It's a **mismatch between technology generations**:
 
 - Docker's cgroups: Designed for discrete GPU era
-- Grace Hopper: Next-gen unified memory architecture
+- Grace Blackwell: Next-gen unified memory architecture
 - Result: Software assumptions don't match hardware reality
 
 And that's why you can't just blame the hardware. The entire stack matters.

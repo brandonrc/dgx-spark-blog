@@ -212,7 +212,7 @@ Sometimes I wonder if this is why people just accept Docker's overhead - at leas
 
 But now that we have both Docker and native environments working, we can actually compare them fairly. And that's where things get interesting...
 
-In the next post: What Grace Hopper's unified memory architecture actually means, and why Docker's cgroups don't understand it.
+In the next post: What Grace Blackwell's unified memory architecture actually means, and why Docker's cgroups don't understand it.
 
 ---
 

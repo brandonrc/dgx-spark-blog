@@ -55,7 +55,7 @@ In native/chroot execution, TensorRT-LLM queries memory directly via CUDA:
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Total Grace Hopper Unified Memory: 128 GB  │
+│  Total Grace Blackwell Unified Memory: 128 GB  │
 │                                             │
 │  ┌─────────────┐  ┌──────────┐  ┌────────┐ │
 │  │   Model     │  │  System  │  │  FREE  │ │
@@ -353,7 +353,7 @@ This deep dive answered the "what" and "why" of the KV cache patterns. But there
 
 These are questions for **Phase 2** of the investigation. For now, the message is clear:
 
-**If you're running large language models on Grace Hopper in production, understand your KV cache allocation. It's the difference between maximal throughput and leaving half your serving capacity on the table.**
+**If you're running large language models on Grace Blackwell in production, understand your KV cache allocation. It's the difference between maximal throughput and leaving half your serving capacity on the table.**
 
 ---
 

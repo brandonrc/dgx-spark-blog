@@ -1,6 +1,6 @@
 # DGX Spark Deep Dive Blog
 
-A technical blog documenting the investigation into Docker container memory overhead on NVIDIA DGX Spark with Grace Hopper architecture.
+A technical blog documenting the investigation into Docker container memory overhead on NVIDIA DGX Spark with Grace Blackwell architecture.
 
 ## Live Site
 
@@ -8,7 +8,7 @@ A technical blog documenting the investigation into Docker container memory over
 
 ## About
 
-This 5-part blog series tells the story of debugging a mysterious 20-30GB memory overhead when running LLM inference in Docker containers on Grace Hopper's unified memory architecture.
+This 5-part blog series tells the story of debugging a mysterious 20-30GB memory overhead when running LLM inference in Docker containers on Grace Blackwell's unified memory architecture.
 
 ### Posts
 
@@ -20,7 +20,7 @@ This 5-part blog series tells the story of debugging a mysterious 20-30GB memory
 
 ## Key Findings
 
-- **Docker containers use 20-30 GB more memory** than native execution on Grace Hopper
+- **Docker containers use 20-30 GB more memory** than native execution on Grace Blackwell
 - **KV cache is reduced by 40-63%** in containers
 - **Performance is identical** - same throughput, no speed penalty
 - **Root cause**: Docker's cgroups double-count unified memory

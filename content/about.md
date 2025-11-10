@@ -15,7 +15,7 @@ So I decided to actually investigate what was going on.
 
 After 60 comprehensive benchmarks across 3 different LLM models, we discovered:
 
-- **Docker containers use 20-30 GB more memory** than native execution on Grace Hopper
+- **Docker containers use 20-30 GB more memory** than native execution on Grace Blackwell
 - **KV cache is reduced by 40-63%** in containers
 - **Performance is identical** - same throughput, no speed penalty
 - **Root cause**: Docker's cgroups double-count unified memory
@@ -43,7 +43,7 @@ We're planning a follow-up investigation:
 
 ## Get Involved
 
-If you're running Grace Hopper or other unified memory systems:
+If you're running Grace Blackwell or other unified memory systems:
 - Share your findings
 - Open issues on GitHub
 - Contribute data or analysis
