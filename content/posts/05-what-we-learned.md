@@ -79,53 +79,69 @@ Traditional discrete GPU systems should NOT exhibit this pattern because:
 - No double-counting possible
 - Standard container best practices apply
 
-## The KV Cache Deep Dive (Phase 2)
+## The KV Cache Mystery (Phase 2)
 
-Here's what really caught my attention: **The KV cache scaling**.
+Here's what really caught my attention: **The relationship between container overhead and KV cache**.
 
-Look at these numbers again:
+Look at the pattern across all models:
 
-| Model | Size | Native KV Cache |
-|-------|------|----------------|
-| DeepSeek | 7B | 44.31 GiB |
-| Qwen | 72B | **44.71 GiB** |
-| GPT-OSS | 120B | 43.19 GiB |
+| Model | Native Total | Container Total | Overhead | Native KV | Container KV | KV Reduction |
+|-------|--------------|-----------------|----------|-----------|--------------|--------------|
+| DeepSeek-7B | 70.47 GiB | 101.30 GiB | **+30.83 GiB** | 44.31 GiB | 16.57 GiB | **-27.74 GiB** |
+| Qwen-72B | 70.03 GiB | 90.02 GiB | **+19.99 GiB** | 44.71 GiB | 26.72 GiB | **-17.99 GiB** |
+| GPT-OSS-120B | 71.72 GiB | 93.43 GiB | **+21.71 GiB** | 43.19 GiB | 23.65 GiB | **-19.54 GiB** |
 
-Wait... the **72B model has MORE KV cache** than the 7B model? And almost as much as the 120B model?
+**The Real Question**: Where is that 20-30 GB container overhead going? And why does it result in lower KV cache allocation?
 
-This suggests:
-- Qwen-72B has superior memory optimization
-- Model architecture matters more than parameter count
-- There's room to optimize other models similarly
+**Hypothesis**: Docker's cgroups are double-counting unified memory, making TensorRT-LLM think it has less available memory. The framework then conservatively allocates less KV cache to avoid OOM errors.
 
-**Phase 2 Goal**: Understand KV cache scaling and memory efficiency across different model architectures.
+Notice:
+- All three models use **~44 GiB KV cache in native mode** (very similar!)
+- Container overhead directly correlates with KV cache reduction
+- The overhead isn't going to computation - it's just... disappearing
 
-## Phase 2: The Factory Reset Experiment
+**Phase 2 Goal**: Figure out exactly where the container overhead is going and why it prevents proper KV cache allocation.
 
-I'm planning a comprehensive Phase 2 investigation:
+## Phase 2: Deep Dive into Container Memory Accounting
+
+I'm planning a comprehensive Phase 2 investigation to understand exactly where that overhead is going:
 
 ### The Plan
 
-1. **Factory reset DGX Spark** - Start completely fresh
-2. **Install bare metal software** - Match container versions exactly
-3. **Create 1:1 configurations** - Container vs native, identical software
-4. **Run extended benchmarks** - More models, longer contexts, varied batch sizes
-5. **Investigate KV cache scaling** - Why does Qwen-72B use memory so efficiently?
+1. **Profile memory allocation in real-time**
+   - Use `nvidia-smi dmon` during container vs native runs
+   - Track CUDA memory allocation patterns
+   - Monitor cgroup memory accounting vs actual GPU usage
 
-### Goals
+2. **Test Docker memory configurations**
+   - Different cgroup versions (v1 vs v2)
+   - Various `--gpus` configurations
+   - Test with `--privileged` mode
+   - Try `--ipc=host` and other isolation tweaks
 
-- Validate my findings with even cleaner test setup
-- Eliminate any remaining configuration variables
-- Deep dive into KV cache allocation strategies
-- Understand memory efficiency across model families
-- Test on other hardware (discrete GPU comparison)
+3. **Instrument TensorRT-LLM**
+   - Add logging to see how much memory it thinks is available
+   - Track KV cache allocation decisions
+   - Compare memory queries between environments
 
-### Open Questions
+4. **Compare with discrete GPUs**
+   - Run same tests on H100/A100 system
+   - Confirm this is Grace Hopper unified memory specific
+   - Establish baseline for normal Docker behavior
 
-- Can I optimize Docker for unified memory? (cgroup v2, special configs)
-- Do other unified memory systems (AMD MI300) show the same pattern?
-- How does KV cache scale with context length (8k, 32k, 128k tokens)?
-- What model architectures are most memory-efficient?
+### Key Questions to Answer
+
+- **Where is the 20-30 GB going?** Is it actually allocated, or just counted differently?
+- **Why does TensorRT-LLM allocate less KV cache?** What signal is it reading?
+- **Can Docker be configured to handle unified memory?** Are there flags/configs we're missing?
+- **Is this NVIDIA Container Toolkit specific?** Would native containerd or podman behave differently?
+
+### Expected Outcomes
+
+- Pinpoint the exact mechanism causing double-counting
+- Determine if there's a Docker configuration fix
+- Document whether this affects other unified memory systems (AMD MI300X, future Intel solutions)
+- Provide concrete recommendations for Grace Hopper containerization
 
 ## Share Your Findings
 
