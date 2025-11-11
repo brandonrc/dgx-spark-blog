@@ -33,7 +33,7 @@ The unified memory part is key. Unlike traditional systems where you have separa
 
 Pretty elegant, right?
 
-## Prior Art: Docker GPU Passthrough Overhead
+## Prior Art: Docker GPU Passthrough Performance
 
 Before diving into our own investigation, I found this paper: [Benchmarking GPU Passthrough Performance on Docker for AI Cloud System](https://www.researchgate.net/publication/396583672_Benchmarking_GPU_Passthrough_Performance_on_Docker_for_AI_Cloud_System).
 
@@ -41,11 +41,11 @@ The authors tested Docker GPU passthrough on consumer hardware (RTX 3060) and fo
 - Native execution: Faster (1.52s avg)
 - Docker containers: Slower (2.55s avg), but higher GPU utilization
 
-**This validated that Docker overhead exists.** But that study used consumer GPUs with simple matrix multiplication. I wanted to understand:
+**This validated my concern that GPU performance loss could occur even with nvidia-container-toolkit passthrough.** The paper specifically noted "GPU overhead occurred in docker environment due to the containerization layer." But that study used consumer GPUs with simple matrix multiplication. I wanted to understand:
 
-1. Does this apply to enterprise DGX hardware?
+1. Does this GPU performance degradation apply to enterprise DGX hardware?
 2. What about production LLM workloads, not just matmul?
-3. **WHY** does this overhead exist in my specific case?
+3. **WHY** does this performance loss exist with Grace Blackwell's unified memory architecture?
 
 ## The Test
 

@@ -16,8 +16,8 @@ After getting both Docker and native environments working, I could finally run p
 
 **"Where is the 26GB going?"**
 
-It wasn't CPU overhead - containers don't add 26GB of process memory.  
-It wasn't the Docker daemon - that's tiny.  
+It wasn't GPU compute performance - throughput was identical at ~120 tokens/sec.
+It wasn't the Docker daemon - that's tiny.
 It wasn't duplicate libraries - bind mounts prevent that.
 
 So... where?
@@ -92,18 +92,18 @@ On a traditional GPU system, cgroups see:
 On Grace Blackwell unified memory, cgroups see:
 - The entire 128GB pool as "system RAM" ✗
 
-## The Double-Counting
+## The Double-Counting Hypothesis
 
-Here's what happens when you run a model in a Docker container on Grace Blackwell:
+Here's what I believe happens when you run a model in a Docker container on Grace Blackwell:
 
 1. **Model loads** into unified memory (let's say 70GB)
 2. **CUDA driver** records this as GPU allocation
-3. **Docker's cgroup** sees 70GB of "container RAM" used
+3. **Docker's memory accounting** may be seeing this as "container RAM" used
 4. **TensorRT-LLM** tries to allocate KV cache
-5. **Docker thinks**: "Container is using 70GB already, only X GB left"
-6. **Reality**: That 70GB is THE SAME MEMORY, just counted twice!
+5. **Docker's view**: "Container is using 70GB already, only X GB left"
+6. **Possible reality**: That 70GB is THE SAME MEMORY, potentially counted twice
 
-Result: Docker reserves extra headroom because it thinks GPU memory is separate "container RAM", even though it's not.
+This is my working hypothesis - Docker's memory accounting may be treating GPU memory as separate "container RAM" in the unified memory architecture, even though it's actually the same physical memory pool. Phase 2 will investigate the exact mechanism.
 
 ## The Evidence
 
@@ -125,7 +125,7 @@ Leaves:               14.72 GB
 KV cache allocated:   13.31 GB (90% of available)
 ```
 
-Docker's cgroup sees 104.92GB used, but the actual model only needs 78GB. The difference (26.6GB) is **phantom overhead** from Docker's memory accounting trying to "reserve" space that's already in use.
+Docker's memory accounting shows 104.92GB used, but the actual model only needs 78GB. The difference (26.6GB) appears to be **phantom overhead** - possibly from Docker's memory accounting system not properly understanding the unified memory architecture.
 
 ## Why Isn't This a Problem on Discrete GPUs?
 
@@ -141,8 +141,8 @@ Discrete GPU:
 Unified Memory (Grace Blackwell):
 - cgroup tracks: "System RAM" (128GB)
 - CUDA tracks: Part of that same 128GB
-- Docker's accounting: Confused!
-- Creates overhead ✗
+- Docker's accounting: Unclear interaction
+- Results in memory overhead ✗
 ```
 
 ## The KV Cache Impact
@@ -182,24 +182,24 @@ That reduced KV cache would **absolutely** become a bottleneck.
 
 ## Can Docker Be Fixed?
 
-Maybe? Potential solutions:
+That's the Phase 2 question. Potential areas to investigate:
 
-1. **Update nvidia-container-toolkit** for unified memory awareness
-2. **Use `--memory=unlimited`** to disable cgroup memory limits
-3. **Special cgroup configuration** for Grace Blackwell
-4. **Wait for Docker/kernel patches** that understand unified memory
+1. **nvidia-container-toolkit configuration** for unified memory systems
+2. **Docker memory settings** (like `--memory=unlimited`)
+3. **Cgroup configuration** specific to Grace Blackwell
+4. **Understanding the exact mechanism** causing the memory overhead
 
-But for now, the simplest solution: **Use native execution for large models on Grace Blackwell**.
+But for now, the practical solution: **Use native execution for large models on Grace Blackwell**.
 
 ## The Takeaway
 
-This isn't Docker being "bad" or Grace Blackwell being "broken." It's a **mismatch between technology generations**:
+This isn't Docker being "bad" or Grace Blackwell being "broken." It's likely a **mismatch between technology generations**:
 
-- Docker's cgroups: Designed for discrete GPU era
+- Docker's memory accounting: Designed for discrete GPU era
 - Grace Blackwell: Next-gen unified memory architecture
-- Result: Software assumptions don't match hardware reality
+- Result: Memory accounting doesn't align with the hardware reality
 
-And that's why you can't just blame the hardware. The entire stack matters.
+And that's why you can't just blame the hardware. The entire stack matters. Phase 2 will dig into the exact mechanism.
 
 In the next post, I'll show you the data: 60 comprehensive benchmark runs across 3 different models, proving this pattern holds consistently.
 

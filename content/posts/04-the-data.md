@@ -71,9 +71,9 @@ The 72B parameter model - the sweet spot:
 
 **Analysis**: Qwen shows **the most efficient memory usage** of all models. Native mode has the **highest KV cache** at 44.71 GiB - even more than the 7B model!
 
-## The Pattern: Container Overhead Scales
+## The Pattern: Memory Overhead Scales
 
-Look at the overhead across models:
+Look at the memory overhead across models:
 
 | Model | Size | Overhead | Pattern |
 |-------|------|----------|---------|
@@ -81,7 +81,7 @@ Look at the overhead across models:
 | Qwen | 72B | **+19.99 GiB (29%)** | Middle |
 | GPT-OSS | 120B | **+21.71 GiB (30%)** | Middle |
 
-**Insight**: Overhead appears proportional to base memory usage, not model size. This suggests Docker's cgroup accounting scales with allocation size, confirming our unified memory double-counting theory.
+**Insight**: Memory overhead appears proportional to base memory usage, not model size. This pattern is consistent with Docker's memory accounting interacting differently with Grace Blackwell's unified memory architecture.
 
 ## Performance Parity: The Good News
 
@@ -124,7 +124,7 @@ Interestingly, containers ran slightly cooler:
 | Native | 60.6°C | 59-61°C |
 | Container | 58.6°C | 57-59°C |
 
-**Why?** Container overhead means more time in cooldown between runs. Actual compute time is the same, but total wall time is longer due to additional memory management.
+**Why?** The additional memory overhead in containers may result in more time in cooldown between runs. Actual compute time is the same, but total wall time could be longer due to memory management differences.
 
 ## Data Quality and Reproducibility
 
@@ -147,13 +147,13 @@ Want to explore the data visually? Check out our [interactive results page](http
 
 After 60 runs across 3 models, the findings are clear:
 
-1. **Container overhead is real**: 20-30 GB consistently
+1. **Memory overhead is real**: 20-30 GB consistently in Docker
 2. **KV cache reduction is significant**: 1.7-2.7x less in containers
 3. **Performance is identical**: No speed penalty for native execution
 4. **Pattern is consistent**: Happens across all model sizes
-5. **Root cause confirmed**: Unified memory + cgroup double-counting
+5. **Likely cause**: Docker's memory accounting doesn't align with unified memory architecture
 
-This isn't a fluke. This isn't a configuration error. This is a fundamental architectural mismatch.
+This isn't a fluke. This isn't a configuration error. This is a systematic pattern that needs deeper investigation (Phase 2).
 
 Next up: What we learned, practical recommendations, and what we're investigating next (spoiler: that KV cache scaling is fascinating).
 
